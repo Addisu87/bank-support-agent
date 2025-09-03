@@ -1,0 +1,1 @@
+# MediaAgent class for images/videos/documents

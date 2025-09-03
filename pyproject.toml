@@ -1,0 +1,54 @@
+[project]
+name = "bank-support-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiocache",
+    "alembic",
+    "asyncpg>=0.30.0",
+    "bcrypt",
+    "celery",
+    "fastapi[standard]",
+    "logfire>=4.3.6",
+    "pillow",
+    "pydantic[email,timezone]",
+    "pydantic-ai-slim[openai]>=0.8.1",
+    "pydantic-evals>=0.8.1",
+    "pyjwt",
+    "pytest",
+    "pytest-asyncio",
+    "python-dotenv>=1.1.1",
+    "sqlalchemy[asyncio]",
+    "uvicorn",
+    "pydantic-settings>=2.10.1",
+    "rich>=14.1.0",
+    "passlib>=1.7.4",
+    "databases[asyncpg]>=0.9.0",
+    "python-multipart>=0.0.20",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.1",
+    "ruff>=0.12.11",
+]
+
+[tool.ruff]
+
+# Same as Black.
+line-length = 88
+indent-width = 4
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".pytest_cache",
+    ".venv",
+    ".vscode",
+    ".logfire",
+    "*.yaml",
+    "*.yml"
+]
+

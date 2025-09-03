@@ -1,0 +1,1 @@
+# Redis caching for agent responses and expensive computations

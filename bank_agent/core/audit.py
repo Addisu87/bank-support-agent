@@ -1,0 +1,1 @@
+# Stores audit logs with trace_id from Logfire and request context
