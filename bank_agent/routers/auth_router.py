@@ -29,7 +29,7 @@ async def register( user: UserIn):
 @router.post("/token")
 async def login(form_data: UserLogin):
     logfire.info("User logged in!")
-    auth_user = authenticate_user(form_data.email, form_data.password)
+    auth_user = await authenticate_user(form_data.email, form_data.password)
     if not auth_user: 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

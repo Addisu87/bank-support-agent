@@ -33,7 +33,7 @@ async def authenticate_user(email: str, password: str):
     
     if not user: 
         raise credentials_exception("Invalid email or password.")
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user.password):
         raise credentials_exception("Invalid email or password.")
     return user
     
