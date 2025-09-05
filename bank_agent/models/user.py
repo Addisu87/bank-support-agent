@@ -4,12 +4,11 @@ from pydantic import BaseModel, ConfigDict
 class UserRegister(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
-    id: int | None = None
-    name: str
+    full_name: str
     email: str 
     
 class UserIn(UserRegister):
-    password: str 
+    hashed_password: str
 
 class UserLogin(BaseModel):
     email: str 

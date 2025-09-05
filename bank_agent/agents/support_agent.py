@@ -2,11 +2,16 @@
 from dataclasses import dataclass
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.models.openai import OpenAIChatModel
-from ..db.storage import save_audit, get_user_by_email, create_user
-from ..models.agent_responses import SupportResponse
+from bank_agent.models.agent_responses import SupportResponse
+from bank_agent.db.storage import get_user_by_email
 from bank_agent.core.config import settings
+import asyncio
 
+import logfire
+logfire.configure(token=settings.LOGFIRE_TOKEN)
+logfire.instrument_pydantic_ai()
 
 @dataclass
 class SupportDependencies:
@@ -17,10 +22,33 @@ class SupportQuery(BaseModel):
     user_id: str 
     message: str 
 
+# Configure MCP servers for all agents
+account_server = MCPServerStdio(  
+    "npx", args=['bank_agent/agents/account_agent.py']
+)
+
+# card_server = MCPServerStdio(  
+#      "npx", args=['bank_agent/agents/card_agent.py']
+# )
+
+# fraud_server = MCPServerStdio(  
+#      "npx", args=['bank_agent/agents/fraud_agent.py']
+# )
+
+# media_server = MCPServerStdio(  
+#      "npx", args=['bank_agent/agents/media_agent.py']
+# )
+
+# notification_server = MCPServerStdio(  
+#      "npx", args=['bank_agent/agents/notification_agent.py']
+# )
+
 # Create the support agent
 support_model = OpenAIChatModel(
-   model_name=settings.OPENAI_MODEL,
-)
+                    model_name=settings.PYDANTIC_AI_MODEL,
+                    api_key=settings.OPENAI_API_KEY,
+                    toolsets=[account_server]
+                )
 
 support_agent = Agent(
     support_model,
@@ -31,69 +59,32 @@ support_agent = Agent(
         'and judge the risk level of their query. Reply using the customer\'s name '
         'when available. Be helpful, secure, and professional.'
     ),
+    instrument=True,
 )
 
 
 @support_agent.system_prompt
 async def add_customer_name(ctx: RunContext[SupportDependencies]) -> str:
-    """Add customer name to system prompt."""
+    """Add customer full_name to system prompt."""
     try:
         # Get user by email from SQLAlchemy User model
         user = await get_user_by_email(ctx.deps.user_email)
-        if user and user.name:
-            return f"The customer's name is {user.name!r}"
-    except:
-        pass
+        if user and user.full_name:
+            return f"The customer's name is {user.full_name!r}"
+    except Exception as e:
+        return f"Error retrieving name: {str(e)}"
     return "The customer's name is not available"
 
 
-@support_agent.tool
-async def customer_balance(
-    ctx: RunContext[SupportDependencies], include_pending: bool = False
-) -> str:
-    """Returns the customer's current account balance."""
-    try:
-        # Get user by email
-        user = await get_user_by_email(ctx.deps.user_email)
-        if not user:
-            return "User not found"
-        
-        # Mock balance implementation - in real app, this would query actual balance
-        # Using user ID for balance logic
-        if user.id == 1:  # First user gets higher balance
-            balance = 123.45 if include_pending else 100.00
-        else:
-            balance = 50.00  # Default balance for other users
-        
-        # Log the balance inquiry
-        await save_audit(
-            actor=ctx.deps.user_email,
-            tool="balance.inquiry",
-            args=f"include_pending={include_pending}",
-            result=f"balance={balance}"
-        )
-        
-        return f'${balance:.2f}'
-    except Exception as e:
-        return f"Error retrieving balance: {str(e)}"
 
-
-@support_agent.tool
-async def block_customer_card(ctx: RunContext[SupportDependencies]) -> str:
-    """Block the customer's card for security."""
-    try:
-        # Get user by email
-        user = await get_user_by_email(ctx.deps.user_email)
-        if not user:
-            return "User not found"
-        
-        # Log the card blocking action
-        await save_audit(
-            actor=ctx.deps.user_email,
-            tool="card.block",
-            args=f"user_email={ctx.deps.user_email}",
-            result="card_blocked"
+async def main():
+    async with support_agent:  
+        deps = SupportDependencies(
+            user_email="addisu@exampl.com"
         )
-        return "Card has been blocked successfully"
-    except Exception as e:
-        return f"Error blocking card: {str(e)}"
+        result = await support_agent.run('How can resolve that I lost my card which has some money?', deps=deps)
+    print(result.output)
+    
+    
+if __name__ == "__main__":
+    asyncio.run(main())
