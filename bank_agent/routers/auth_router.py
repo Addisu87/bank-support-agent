@@ -2,7 +2,11 @@ from fastapi import APIRouter, HTTPException, status
 import logfire
 from ..models.user import UserIn, UserLogin
 from bank_agent.db.storage import get_user_by_email
-from bank_agent.core.deps import register_user,authenticate_user, issue_tokens_for_user
+from bank_agent.core.deps import (
+    register_user,
+    authenticate_user,
+    issue_tokens_for_user
+)
 
 router = APIRouter()
 
@@ -18,7 +22,7 @@ async def register( user: UserIn):
             detail="A user with that email already exists!",
         )
     
-    await register_user(user.email, user.hashed_password)
+    await register_user(user.email, user.password)
     return {"status": "registered"}
     
     

@@ -10,7 +10,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     REDIS_URL: str | None = None
     LOGFIRE_TOKEN: str | None = None
-    
     JWT_SECRET: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
 

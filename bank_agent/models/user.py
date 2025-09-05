@@ -8,7 +8,7 @@ class UserRegister(BaseModel):
     email: str 
     
 class UserIn(UserRegister):
-    hashed_password: str
+    password: str
 
 class UserLogin(BaseModel):
     email: str 
