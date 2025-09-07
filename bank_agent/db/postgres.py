@@ -11,9 +11,7 @@ engine= create_async_engine(settings.DATABASE_URL, echo=False, future=True)
 
 # Session factory
 AsyncSessionLocal = sessionmaker(
-    engine, 
-    class_=AsyncSession,
-    expire_on_commit=False
+    engine,  class_=AsyncSession, expire_on_commit=False
 )
 
 # Dependency to get DB session

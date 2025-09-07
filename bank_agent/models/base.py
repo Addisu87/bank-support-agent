@@ -1,1 +1,0 @@
- # SQLAlchemy Base class

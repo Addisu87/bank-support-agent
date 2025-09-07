@@ -1,71 +1,72 @@
 from dataclasses import dataclass
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
-from ..db.storage import save_audit, get_user_by_email
+from ..db.crud import get_user_by_email, get_accounts_by_user, get_transactions
 from bank_agent.core.config import settings
-import asyncio  
+from pydantic_ai.mcp import MCPServerStdio
 import logfire
+    
+from bank_agent.models.account import Transaction
 
 logfire.configure(token=settings.LOGFIRE_TOKEN)
 logfire.instrument_pydantic_ai()
 
+
+server = MCPServerStdio(  
+    'uv', args=['run', 'mcp-run-python', 'stdio'], timeout=10
+)
+
 @dataclass
 class AccountDependencies:
-    user_email: str
+    user_email: str  
 
 account_model = OpenAIChatModel(
                     model_name=settings.PYDANTIC_AI_MODEL,
-                    api_key=settings.DEEPSEEK_API_KEY   
+                    api_key=settings.OPENAI_API_KEY,
+                    toolsets=[server]  
                 )
 
 account_agent = Agent(
     account_model,
     deps_type=AccountDependencies,
     system_prompt=(
-        'You are an account agent. You can fetch customer account balances.'
+        'You are an account agent. You can provide customer account balances and transactions'
     ),
     instrument=True,
 )
 
 @account_agent.tool
-async def get_customer_balance(
-    ctx: RunContext[AccountDependencies], include_pending: bool = False
-) -> str:
+async def get_customer_balance_by_email(ctx: RunContext[AccountDependencies]):
     """Returns the customer's current account balance."""
     logfire.info(f"Fetching balance for user: {ctx.deps.user_email}")
-    
-    try:
-        user = await get_user_by_email(ctx.deps.user_email)
-        if not user:
-            return "User not found"
-        
-        # Mock balance implementation - in real app, this would query actual balance
-        # Using user ID for balance logic
-        if user.id == 1:  # First user gets higher balance
-            balance = 123.45 if include_pending else 100.00
-        else:
-            balance = 50.00  # Default balance for other users
-        
-        # Log the balance inquiry
-        await save_audit(
-            actor=ctx.deps.user_email,
-            tool="balance.inquiry",
-            args=f"include_pending={include_pending}",
-            result=f"balance={balance}"
-        )
-        
-        return f'${balance:.2f}'
-    except Exception as e:
-        return f"Error retrieving balance: {str(e)}"
 
-async def main():
-    async with account_agent:  
-        deps = AccountDependencies(
-            user_email="addisu@exampl.com"
-        )
-        result = await account_agent.run('How can resolve that I lost my card which has some money?', deps=deps)
-    print(result.output)
+    user = await get_user_by_email(ctx.deps.user_email)
+    if not user:
+        return "User not found"
     
+    accounts = await get_accounts_by_user(user.id)
+    return [{
+            "account_number": acc.account_number, 
+            "balance": acc.balance, 
+            "currency": acc.currency
+            }
+        for acc in accounts]
+
+@account_agent.tool
+async def recent_transactions(ctx: RunContext[AccountDependencies], account_number: str, limit: int = 5):
+    """Returns the customer's recent transactions for a given account."""
+    logfire.info(f"Fetching recent transactions for user: {ctx.deps.user_email}, account: {account_number}")
+
+    user = await get_user_by_email(ctx.deps.user_email)
+    if not user:
+        return "User not found"
     
-if __name__ == "__main__":
-    asyncio.run(main())
+    accounts = await get_accounts_by_user(user.id)
+    account = next((acc for acc in accounts if acc.account_number == account_number), None)
+    
+    if not account:
+        return f"Account with number {account_number} not found for this user."
+        
+    transactions = await get_transactions(account.id, limit)
+    return [Transaction.model_validate(tx).model_dump() for tx in transactions]
+    

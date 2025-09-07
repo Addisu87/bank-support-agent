@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     LOGFIRE_TOKEN: str | None = None
     JWT_SECRET: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
+    OBP_BASE_URL: str | None = None
+    OBP_ACCESS_TOKEN: str | None = None
 
 
 settings = Settings()

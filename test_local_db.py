@@ -30,13 +30,13 @@ async def test_database():
         
         # Initialize tables
         print("🏗️  Creating tables...")
-        from bank_agent.db.storage import init_db
+        from bank_agent.db.crud import init_db
         await init_db()
         print("✅ Tables created")
         
         # Test CRUD operations
         print("📝 Testing operations...")
-        from bank_agent.db.storage import create_user, get_user_by_email, save_audit
+        from bank_agent.db.crud import create_user, get_user_by_email, save_audit
         from bank_agent.db.postgres import AsyncSessionLocal
         
         async with AsyncSessionLocal() as session:

@@ -1,1 +1,0 @@
-# Session model for refresh tokens

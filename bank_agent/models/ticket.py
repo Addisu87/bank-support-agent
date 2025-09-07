@@ -1,1 +1,0 @@
-# Ticket model (support tickets)

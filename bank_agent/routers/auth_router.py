@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 import logfire
 from ..models.user import UserIn, UserLogin
-from bank_agent.db.storage import get_user_by_email
+from bank_agent.db.crud import get_user_by_email
 from bank_agent.core.deps import (
     register_user,
     authenticate_user,
