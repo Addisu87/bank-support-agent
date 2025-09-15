@@ -52,3 +52,6 @@ exclude = [
     "*.yml"
 ]
 
+[tool.setuptools]
+packages = ["bank_agent"]
+

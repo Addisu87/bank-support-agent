@@ -18,3 +18,13 @@ uvicorn bank_agent.main:app --reload
 
 <!- -->
 # alembic downgrade base && alembic upgrade head
+
+
+### Start the main FastAPI application:
+  - uvicorn main:app --host 0.0.0.0 --port 8000
+
+### Run the client:
+    - python -m bank_agent.mcp.client
+
+### Run the tests:
+   - pytest bank_agent/tests/test_mcp.py

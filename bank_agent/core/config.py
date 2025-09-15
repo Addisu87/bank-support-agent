@@ -15,5 +15,4 @@ class Settings(BaseSettings):
     OBP_BASE_URL: str | None = None
     OBP_ACCESS_TOKEN: str | None = None
 
-
 settings = Settings()
