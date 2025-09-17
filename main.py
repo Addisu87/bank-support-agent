@@ -9,10 +9,8 @@ from bank_agent.core.config import settings
 # REST routers
 from bank_agent.routers.auth_router import router as auth_router
 from bank_agent.routers.users_router import router as users_router
+from bank_agent.routers.banking_router import router as banking_router
 from bank_agent.routers.agent_router import router as agent_router
-
-# Import MCP app from mcp_router.py
-from bank_agent.routers.mcp_router import router as mcp_app
 
 # Configure logfire
 if settings.LOGFIRE_TOKEN:
@@ -38,9 +36,7 @@ app = FastAPI(title="Bank Agent Unified App", lifespan=lifespan)
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(users_router, prefix="/users", tags=["users"])
 app.include_router(agent_router, prefix="/agent", tags=["agent"])
-
-# Mount MCP app
-app.mount("/mcp", mcp_app)
+app.include_router(banking_router, prefix="/banking", tags=["banking"])
 
 # CORS
 origins = [

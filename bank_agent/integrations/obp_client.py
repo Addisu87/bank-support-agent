@@ -10,13 +10,23 @@ class OBPClient:
         
     def _headers(self):
         return {
-            "Authorization": f"DirectLogin token = {self.token}"
+            "Authorization": f"DirectLogin token={self.token}",
+            "Content-Type": "application/json"
         }
         
     async def get_banks(self):
         async with httpx.AsyncClient() as client: 
-            resp = await client.get(f"{self.base_url}/obp/v5.0.0/banks",
-                                    headers=self._headers())
+            # Try with auth first, fallback to public if auth fails
+            try:
+                if self.token:
+                    resp = await client.get(f"{self.base_url}/obp/v5.0.0/banks",
+                                            headers=self._headers())
+                else:
+                    raise Exception("No token, using public endpoint")
+            except:
+                # Fallback to public endpoint
+                resp = await client.get(f"{self.base_url}/obp/v5.0.0/banks")
+            
             resp.raise_for_status()
             return resp.json().get('banks', [])
         

@@ -3,8 +3,12 @@ Shared account services to avoid code duplication between agent tools and MCP to
 """
 import logfire
 from typing import List, Dict, Optional
-from bank_agent.db.crud import get_user_by_email, get_accounts_by_user, get_transactions, block_card_by_number as db_block_card_by_number, get_cards_by_user
-from bank_agent.models.account import Transaction
+from bank_agent.db.crud import get_user_by_email, get_accounts_by_user, get_transactions, block_card_by_number as db_block_card_by_number, get_cards_by_user, create_account, create_bank
+from sqlalchemy import select
+from bank_agent.db.models import Bank
+from bank_agent.db.postgres import AsyncSessionLocal
+from bank_agent.models.transaction import Transaction
+from bank_agent.services.obp_service import obp_service
 
 
 async def get_customer_accounts_data(user_email: str) -> List[Dict]:
@@ -141,3 +145,106 @@ async def block_card_by_number(user_email: str, card_number: str) -> Dict:
         "card_status": card.status,
         "blocked_at": card.created_at.isoformat() if card.created_at else None
     }
+
+
+async def get_banking_demo_info() -> Dict:
+    """
+    Get demo banking information from OBP sandbox.
+    
+    Returns:
+        Dictionary with demo banking information
+    """
+    logfire.info("Fetching demo banking information from OBP")
+    return await obp_service.get_demo_banking_scenario()
+
+
+async def get_or_create_default_bank() -> Dict:
+    """
+    Get an existing bank or create a default one.
+    
+    Returns:
+        Dictionary with bank information or error
+    """
+    try:
+        # Try to find an existing bank first
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(Bank).limit(1))
+            existing_bank = result.scalar_one_or_none()
+        
+        if existing_bank:
+            logfire.info(f"Using existing bank: {existing_bank.name}")
+            return {
+                "status": "success",
+                "bank": existing_bank,
+                "message": f"Using existing bank: {existing_bank.name}"
+            }
+        else:
+            # Create a default bank if none exists
+            bank = await create_bank(name="Demo Bank", bic="DEMO123", country="US")
+            logfire.info(f"Created new bank: {bank.name}")
+            return {
+                "status": "success", 
+                "bank": bank,
+                "message": f"Created new bank: {bank.name}"
+            }
+            
+    except Exception as e:
+        logfire.error(f"Error managing bank: {str(e)}")
+        return {
+            "status": "error",
+            "bank": None,
+            "message": f"Failed to get or create bank: {str(e)}"
+        }
+
+
+async def create_new_account(user_email: str, account_type: str = "checking", initial_balance: float = 0.0) -> Dict:
+    """
+    Create a new bank account for a user.
+    
+    Args:
+        user_email: The email of the user
+        account_type: Type of account (checking, savings, etc.)
+        initial_balance: Starting balance for the account
+        
+    Returns:
+        Dictionary with account creation result
+    """
+    logfire.info(f"Creating new {account_type} account for user: {user_email}")
+
+    user = await get_user_by_email(user_email)
+    if not user:
+        logfire.warning(f"User not found: {user_email}")
+        return {"status": "error", "message": "User not found"}
+    
+    # Get or create a bank first
+    bank_result = await get_or_create_default_bank()
+    if bank_result["status"] != "success":
+        return bank_result
+    
+    bank = bank_result["bank"]
+    
+    try:
+        # Create the account
+        account = await create_account(
+            user_id=user.id,
+            bank_id=bank.id,
+            account_type=account_type,
+            balance=initial_balance,
+            currency="USD"
+        )
+        
+        logfire.info(f"Successfully created account {account.account_number} for user {user_email}")
+        
+        return {
+            "status": "success",
+            "message": f"Successfully created {account_type} account",
+            "account_number": account.account_number,
+            "account_type": account.account_type,
+            "balance": account.balance,
+            "currency": account.currency,
+            "created_at": account.created_at.isoformat() if account.created_at else None
+        }
+        
+    except Exception as e:
+        logfire.error(f"Error creating account: {str(e)}")
+        return {"status": "error", "message": f"Failed to create account: {str(e)}"}
