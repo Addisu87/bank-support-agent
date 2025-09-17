@@ -1,30 +1,78 @@
-# uv venv
+# Bank Support Agent
 
-# source .venv/bin/activate
+This project is a FastAPI-based bank support agent that uses a combination of AI agents and database integration to provide assistance to bank customers.
 
-# alembic init migrations
-# alembic revision --autogenerate -m "create bank accounts table"
-# alembic upgrade head
+## Installation
 
-<!-- uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 -->
+1.  **Clone the repository:**
 
+    ```bash
+    git clone https://github.com/Addisu87/bank-support-agent.git
+    cd bank-support-agent
+    ```
 
+2.  **Create a virtual environment and install dependencies:**
 
-# init db and sync from OBP sandbox
-python -m bank_agent.scripts.sync_obp
+    This project uses `uv` for package management.
 
-# run the API
-uvicorn bank_agent.main:app --reload
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    uv pip sync pyproject.toml
+    ```
 
-<!- -->
-# alembic downgrade base && alembic upgrade head
+    *Note: If you don't have `uv` installed, you can install it with `pip install uv`.*
 
+3.  **Set up environment variables:**
 
-### Start the main FastAPI application:
-  - uvicorn main:app --host 0.0.0.0 --port 8000
+    Create a `.env` file from the `env.template` and fill in the required values.
 
-### Run the client:
-    - python -m bank_agent.mcp.client
+    ```bash
+    cp env.template .env
+    ```
 
-### Run the tests:
-   - pytest bank_agent/tests/test_mcp.py
+4.  **Database setup:**
+
+    This project uses Alembic for database migrations.
+
+    ```bash
+    alembic upgrade head
+    ```
+s
+## Usage
+
+1.  **Sync with OBP Sandbox:**
+
+    To initialize the database and sync with the OBP sandbox, run the following command:
+
+    ```bash
+    python -m bank_agent.scripts.sync_obp
+    ```
+
+2.  **Run the FastAPI application:**
+
+    ```bash
+    uvicorn main:app --reload
+    uv run python main.py
+    ```
+
+    The application will be available at `http://localhost:8000`.
+
+## Testing
+
+To run the tests, use the following command:
+
+```bash
+pytest
+```
+
+## API Reference
+
+The API documentation is available at `http://localhost:8000/docs` when the application is running.
+
+### Main Endpoints
+
+*   `/agent`: Agent-related endpoints.
+*   `/auth`: Authentication endpoints.
+*   `/mcp`: MCP-related endpoints.
+*   `/users`: User-related endpoints.

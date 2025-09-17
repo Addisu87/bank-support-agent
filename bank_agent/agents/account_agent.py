@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.deepseek import DeepSeekProvider
 from bank_agent.core.config import settings
-from bank_agent.services.account_service import get_customer_accounts_data, get_account_transactions_data
+from bank_agent.services.account_service import get_customer_accounts_data, get_account_transactions_data, block_card_by_number, get_user_cards_data
 import logfire
 
 logfire.configure(token=settings.LOGFIRE_TOKEN)
@@ -13,12 +13,9 @@ logfire.instrument_pydantic_ai()
 class AccountDependencies:
     user_email: str  
 
-# Create OpenAI provider with your API key
-openai_provider = OpenAIProvider(api_key=settings.OPENAI_API_KEY)
-
 account_model = OpenAIChatModel(
     model_name=settings.PYDANTIC_AI_MODEL,
-    provider=openai_provider
+    provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY)
 )
 
 account_agent = Agent(
@@ -45,3 +42,15 @@ async def recent_transactions(ctx: RunContext[AccountDependencies], account_numb
     if not transactions:
         return f"No transactions found for account {account_number} or user not found."
     return transactions
+
+@account_agent.tool
+async def get_user_cards(ctx: RunContext[AccountDependencies]):
+    """Returns the customer's cards with masked numbers."""
+    cards = await get_user_cards_data(ctx.deps.user_email)
+    return cards if cards else "No cards found for this user"
+
+@account_agent.tool
+async def block_card(ctx: RunContext[AccountDependencies], card_number: str):
+    """Block a customer's card for security purposes."""
+    result = await block_card_by_number(ctx.deps.user_email, card_number)
+    return result

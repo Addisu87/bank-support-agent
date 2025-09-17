@@ -14,9 +14,8 @@ router = APIRouter()
 async def register( user: UserIn):
     
     existing_user = await get_user_by_email(email=user.email)
-    logfire.info("User already exists!")
-    
     if existing_user:
+        logfire.info("User already exists!")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A user with that email already exists!",

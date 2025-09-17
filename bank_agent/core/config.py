@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     
     DATABASE_URL: str | None = None
     PYDANTIC_AI_MODEL: str | None = None
-    OPENAI_API_KEY: str | None = None
+    DEEPSEEK_API_KEY: str | None = None
+    BASE_URL: str | None = None
     REDIS_URL: str | None = None
     LOGFIRE_TOKEN: str | None = None
     JWT_SECRET: str = secrets.token_urlsafe(32)

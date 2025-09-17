@@ -1,7 +1,9 @@
 import logfire
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from bank_agent.db.crud import init_db
+from bank_agent.db.postgres import engine
+from fastapi.middleware.cors import CORSMiddleware
 from bank_agent.core.config import settings
 
 # REST routers
@@ -17,8 +19,20 @@ if settings.LOGFIRE_TOKEN:
     logfire.configure(token=settings.LOGFIRE_TOKEN)
     logfire.instrument_pydantic_ai()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await init_db()
+    logfire.info("Database initialized successfully.")
+    
+    yield
+    
+    # Shutdown
+    await engine.dispose()
+    logfire.info("Application shutdown complete.")
+
 # Main FastAPI app
-app = FastAPI(title="Bank Agent Unified App")
+app = FastAPI(title="Bank Agent Unified App", lifespan=lifespan)
 
 # REST routes
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
@@ -42,11 +56,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Startup
-@app.on_event("startup")
-async def startup():
-    logfire.info("Database initialized successfully.")
-    await init_db()
 
 # Health check
 @app.get("/health")

@@ -8,7 +8,7 @@ dependencies = [
     "aiocache",
     "alembic",
     "asyncpg>=0.30.0",
-    "bcrypt",
+    "bcrypt<=4.0.1",
     "celery",
     "fastapi[standard]",
     "logfire>=4.3.6",
