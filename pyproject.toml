@@ -53,5 +53,5 @@ exclude = [
 ]
 
 [tool.setuptools]
-packages = ["bank_agent"]
+packages = ["app"]
 

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from alembic.util.exc import CommandError
-from bank_agent.db.models import Base
+from app.db.models import Base
 
 
 # this is the Alembic Config object, which provides
