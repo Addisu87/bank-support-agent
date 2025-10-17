@@ -37,15 +37,16 @@ class AccountResponse(BaseModel):
 
 class CreateAccountRequest(BaseModel):
     """Request model for creating new accounts"""
-    email: str
-    account_type: str = "checking"
-    initial_balance: float = 0.0
+    bank_id: int
+    account_type: str 
+    balance: float = 0.0
+    currency: str = "USD"
 
 class AccountCreationResponse(BaseModel):
     """Response for account creation"""
     status: str
     message: str
-    account_number: str | None = None
+    account_number: int | None = None
     account_type: str | None = None
     balance: float | None = None
     currency: str | None = None

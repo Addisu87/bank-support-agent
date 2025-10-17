@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     BASE_URL: str | None = None
     REDIS_URL: str | None = None
     LOGFIRE_TOKEN: str | None = None
-    JWT_SECRET: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
     OBP_BASE_URL: str | None = None
     OBP_ACCESS_TOKEN: str | None = None

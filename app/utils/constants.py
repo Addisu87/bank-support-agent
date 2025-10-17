@@ -8,3 +8,4 @@ def confirm_token_expire_minutes() -> int:
 
 def email_reset_token_expire_hours() -> int:
     return 48
+

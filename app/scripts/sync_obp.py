@@ -1,7 +1,7 @@
 import asyncio
 from app.integrations.obp_client import OBPClient
-from app.db.postgres import get_session
-from app.db.models import Bank
+from app.db.session import get_session
+from app.db.schema import Bank
 
 async def sync_obp():
     client = OBPClient()

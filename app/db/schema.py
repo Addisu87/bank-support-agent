@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy import (
-    Column, Integer, String, JSON, DateTime, Text, ForeignKey, Float
+    Column, Integer, String, JSON, DateTime, Text, ForeignKey, Float, Boolean
     )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -14,10 +14,11 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(255), nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password = Column(String(255), nullable=False)
-    roles = Column(JSON, default=list)
+    hashed_pwd = Column(String(255), nullable=False)
+    roles = Column(String(255), nullable=False)
     access_token = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_active = Column(Boolean, default=True) 
     
     accounts = relationship("Account", back_populates="user")
 

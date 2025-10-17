@@ -2,7 +2,7 @@ import logfire
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.postgres import engine, init_db
+from app.db.session import engine, init_db
 from app.core.config import settings
 
 # REST routers
@@ -35,8 +35,8 @@ app = FastAPI(title="Bank Agent Unified App", lifespan=lifespan)
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 app.include_router(agent_router, prefix="/api/v1/agent", tags=["agent"])
-app.include_router(account_router, prefix="/api/v1/accounts", tags=["accounts"])
 app.include_router(banks_router, prefix="/api/v1/banks", tags=["banks"])
+app.include_router(account_router, prefix="/api/v1/accounts", tags=["accounts"])
 # CORS
 origins = [
     "http://127.0.0.1",

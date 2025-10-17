@@ -1,5 +1,5 @@
-from app.db.models import Audit
-from app.db.postgres import AsyncSessionLocal
+from app.db.schema import Audit
+from app.db.session import AsyncSessionLocal
 
 async def save_audit(actor, tool, args, result, request_id=None):
     async with AsyncSessionLocal() as session: 

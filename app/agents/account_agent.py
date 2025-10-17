@@ -1,24 +1,33 @@
 import logfire
 from dataclasses import dataclass
+from sqlalchemy import select
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
-from app.core.config import settings
-from app.services.account_service import get_accounts_by_user, create_account as create_account_service, get_user_id_from_email, get_account_id_for_user
-from app.services.transaction_service import get_transactions
-from app.services.card_service import block_card_by_number, get_cards_by_user
-from app.services.bank_service import list_banks
 
+from app.core.config import settings
+from app.db.schema import Account, Card, Transaction
+from app.models.account import AccountInfo
+from app.models.transaction import TransactionInfo
+from app.models.card import CardInfo
+from app.services.bank_service import list_banks
+from app.core.db_utils import get_user_db
+
+# ------------------------
+# 🔧 Setup
+# ------------------------
 logfire.configure(token=settings.LOGFIRE_TOKEN)
 logfire.instrument_pydantic_ai()
 
+
 @dataclass
 class AccountDependencies:
-    email: str  
+    email: str
+
 
 account_model = OpenAIChatModel(
     model_name=settings.PYDANTIC_AI_MODEL,
-    provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY)
+    provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY),
 )
 
 account_agent = Agent(
@@ -32,58 +41,123 @@ account_agent = Agent(
     instrument=True,
 )
 
+# ------------------------
+# 🏦 Agent Tools
+# ------------------------
+
 @account_agent.tool
 async def get_banks(ctx: RunContext[AccountDependencies]):
     """Returns a list of available banks."""
     banks = await list_banks()
     return banks if banks else "No banks found."
 
-@account_agent.tool
-async def get_customer_balance_by_email(ctx: RunContext[AccountDependencies]):
-    """Returns the customer's current account balance."""
-    user_id = await get_user_id_from_email(ctx.deps.email)
-    if not user_id:
-        return "User not found."
-    accounts = await get_accounts_by_user(user_id)
-    return accounts if accounts else "No accounts found for this user."
 
 @account_agent.tool
-async def recent_transactions(ctx: RunContext[AccountDependencies], account_number: str, limit: int = 5):
+async def get_customer_balance_by_email(ctx: RunContext[AccountDependencies]):
+    """Returns all customer accounts and balances."""
+    async with get_user_db(ctx.deps.email) as (db, user):
+        if not user:
+            return "User not found."
+
+        result = await db.execute(select(Account).filter_by(user_id=user.id))
+        accounts = result.scalars().all()
+        if not accounts:
+            return "No accounts found for this user."
+
+        return [AccountInfo.model_validate(acc) for acc in accounts]
+
+
+@account_agent.tool
+async def recent_transactions(
+    ctx: RunContext[AccountDependencies],
+    account_number: str,
+    limit: int = 5,
+):
     """Returns the customer's recent transactions for a given account."""
-    user_id = await get_user_id_from_email(ctx.deps.email)
-    if not user_id:
-        return "User not found."
-    account_id = await get_account_id_for_user(user_id, account_number)
-    if not account_id:
-        return f"Account {account_number} not found for this user."
-    transactions = await get_transactions(account_id, limit)
-    if not transactions:
-        return f"No transactions found for account {account_number}."
-    return transactions
+    async with get_user_db(ctx.deps.email) as (db, user):
+        if not user:
+            return "User not found."
+
+        account_result = await db.execute(
+            select(Account.id).filter_by(user_id=user.id, account_number=account_number)
+        )
+        account_id = account_result.scalar_one_or_none()
+        if not account_id:
+            return f"Account {account_number} not found for this user."
+
+        tx_result = await db.execute(
+            select(Transaction)
+            .filter_by(account_id=account_id)
+            .order_by(Transaction.timestamp.desc())
+            .limit(limit)
+        )
+        transactions = tx_result.scalars().all()
+
+        if not transactions:
+            return f"No transactions found for account {account_number}."
+
+        return [TransactionInfo.model_validate(tx) for tx in transactions]
+
 
 @account_agent.tool
 async def get_user_cards(ctx: RunContext[AccountDependencies]):
     """Returns the customer's cards with masked numbers."""
-    user_id = await get_user_id_from_email(ctx.deps.email)
-    if not user_id:
-        return "User not found."
-    cards = await get_cards_by_user(user_id)
-    return cards if cards else "No cards found for this user"
+    async with get_user_db(ctx.deps.email) as (db, user):
+        if not user:
+            return "User not found."
+
+        result = await db.execute(
+            select(Card).join(Account).filter(Account.user_id == user.id)
+        )
+        cards = result.scalars().all()
+        if not cards:
+            return "No cards found for this user."
+
+        return [CardInfo.model_validate(card) for card in cards]
+
 
 @account_agent.tool
 async def block_card(ctx: RunContext[AccountDependencies], card_number: str):
     """Block a customer's card for security purposes."""
-    user_id = await get_user_id_from_email(ctx.deps.email)
-    if not user_id:
-        return "User not found."
-    result = await block_card_by_number(card_number, user_id)
-    return result
+    async with get_user_db(ctx.deps.email) as (db, user):
+        if not user:
+            return "User not found."
+
+        result = await db.execute(
+            select(Card)
+            .join(Account)
+            .filter(Card.card_number == card_number, Account.user_id == user.id)
+        )
+        card = result.scalar_one_or_none()
+        if not card:
+            return "Card not found."
+
+        card.status = "blocked"
+        await db.commit()
+        return f"Card {card.card_number} has been blocked successfully."
+
 
 @account_agent.tool
-async def create_account(ctx: RunContext[AccountDependencies], bank_id: int, account_type: str = "checking", initial_balance: float = 0.0):
+async def create_account(
+    ctx: RunContext[AccountDependencies],
+    bank_id: int,
+    account_type: str = "checking",
+    initial_balance: float = 0.0,
+):
     """Create a new bank account for the customer."""
-    user_id = await get_user_id_from_email(ctx.deps.email)
-    if not user_id:
-        return "User not found."
-    result = await create_account_service(user_id=user_id, bank_id=bank_id, account_type=account_type, balance=initial_balance)
-    return result
+    async with get_user_db(ctx.deps.email) as (db, user):
+        if not user:
+            return "User not found."
+
+        new_account = Account(
+            user_id=user.id,
+            bank_id=bank_id,
+            account_type=account_type,
+            balance=initial_balance,
+            currency="USD",
+        )
+        db.add(new_account)
+        await db.commit()
+        await db.refresh(new_account)
+
+        return AccountInfo.model_validate(new_account)

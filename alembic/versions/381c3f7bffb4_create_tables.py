@@ -1,8 +1,8 @@
-"""Initial migration
+"""Create tables
 
-Revision ID: 5aeebc17342b
+Revision ID: 381c3f7bffb4
 Revises: 
-Create Date: 2025-09-07 14:01:08.359579
+Create Date: 2025-10-17 21:03:56.158217
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '5aeebc17342b'
+revision: str = '381c3f7bffb4'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -47,10 +47,11 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('full_name', sa.String(length=255), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
-    sa.Column('password', sa.String(length=255), nullable=False),
-    sa.Column('roles', sa.JSON(), nullable=True),
+    sa.Column('hashed_pwd', sa.String(length=255), nullable=False),
+    sa.Column('roles', sa.String(length=255), nullable=False),
     sa.Column('access_token', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)

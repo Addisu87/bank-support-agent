@@ -36,6 +36,7 @@ This project is a FastAPI-based bank support agent that uses a combination of AI
     This project uses Alembic for database migrations.
 
     ```bash
+    alembic revision --autogenerate -m "message"
     alembic upgrade head
     ```
 s
@@ -69,10 +70,3 @@ pytest
 ## API Reference
 
 The API documentation is available at `http://localhost:8000/docs` when the application is running.
-
-### Main Endpoints
-
-*   `/agent`: Agent-related endpoints.
-*   `/auth`: Authentication endpoints.
-*   `/mcp`: MCP-related endpoints.
-*   `/users`: User-related endpoints.

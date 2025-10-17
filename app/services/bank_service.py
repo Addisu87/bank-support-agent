@@ -1,5 +1,5 @@
-from app.db.models import Bank
-from app.db.postgres import AsyncSessionLocal
+from app.db.schema import Bank
+from app.db.session import AsyncSessionLocal
 from sqlalchemy import select
 
 async def create_bank(name: str, bic: str = None, country: str = None):
