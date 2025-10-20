@@ -2,10 +2,9 @@ import logfire
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
-from typing import Dict, Any
 
-from app.core.config import settings
 from app.core.cache import cache
+from app.core.config import settings
 
 # ------------------------
 # 🔧 Setup & Configuration
@@ -16,6 +15,7 @@ logfire.instrument_pydantic_ai()
 # ------------------------
 # 🏦 Simple Banking Agent
 # ------------------------
+
 
 def create_banking_agent() -> Agent:
     """Create a simple banking conversation agent"""
@@ -48,8 +48,9 @@ def create_banking_agent() -> Agent:
         """,
         instrument=True,
     )
-    
+
     return agent
+
 
 # Global agent instance
 banking_agent = create_banking_agent()
@@ -58,9 +59,10 @@ banking_agent = create_banking_agent()
 # 🏦 Simple Agent Functions
 # ------------------------
 
+
 async def chat_with_agent(user_query: str, use_cache: bool = True) -> str:
     """Simple function to chat with the banking agent"""
-    with logfire.span('agent_chat', user_query=user_query):
+    with logfire.span("agent_chat", user_query=user_query):
         # Check cache first if enabled
         if use_cache:
             cache_key = f"agent_response:{hash(user_query)}"
@@ -68,24 +70,25 @@ async def chat_with_agent(user_query: str, use_cache: bool = True) -> str:
             if cached_response:
                 logfire.info("Returning cached agent response")
                 return cached_response
-        
+
         try:
             result = await banking_agent.run(user_query)
             response = result.data
-            
+
             # Cache the response if enabled
             if use_cache:
                 await cache.set(cache_key, response, expire=3600)  # 1 hour
-            
+
             return response
-            
+
         except Exception as e:
             logfire.error("Agent chat error", error=str(e))
             return "I apologize, but I'm having trouble responding right now. Please try again later or contact our support team for immediate assistance."
 
+
 async def clear_agent_cache() -> int:
     """Clear all cached agent responses"""
-    with logfire.span('clear_agent_cache'):
+    with logfire.span("clear_agent_cache"):
         pattern = "agent_response:*"
         keys = await cache.redis.keys(pattern)
         if keys:

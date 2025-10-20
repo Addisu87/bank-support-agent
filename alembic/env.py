@@ -2,24 +2,24 @@ import os
 import sys
 
 # Add the project root to the sys.path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy import pool
-import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from alembic.util.exc import CommandError
-from app.db.models.base import BaseModel
-# FORCE import all models to ensure they register with metadata
-from app.db.models.user import User
 from app.db.models.account import Account
 from app.db.models.bank import Bank
-from app.db.models.transaction import Transaction
+from app.db.models.base import BaseModel
 from app.db.models.card import Card
+from app.db.models.transaction import Transaction
 
+# FORCE import all models to ensure they register with metadata
+from app.db.models.user import User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -71,6 +71,7 @@ def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
         context.run_migrations()
+
 
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode.

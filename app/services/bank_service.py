@@ -1,45 +1,47 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import logfire
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.cache import cache
 from app.db.models.bank import Bank
 from app.schemas.bank import BankCreate, BankUpdate
-from app.core.cache import cache
-import logfire
+
 
 async def get_bank_by_id(db: AsyncSession, bank_id: int) -> Bank:
-    with logfire.span('get_bank_by_id', bank_id=bank_id):
+    with logfire.span("get_bank_by_id", bank_id=bank_id):
         cache_key = f"bank:{bank_id}"
         cached = await cache.get_json(cache_key)
         if cached:
             return Bank(**cached)
-        
+
         bank = await db.get(Bank, bank_id)
         if bank:
             await cache.set_json(cache_key, bank.__dict__)
         return bank
 
+
 async def get_bank_by_code(db: AsyncSession, bank_code: str) -> Bank:
-    with logfire.span('get_bank_by_code', bank_code=bank_code):
+    with logfire.span("get_bank_by_code", bank_code=bank_code):
         cache_key = f"bank:code:{bank_code}"
         cached = await cache.get_json(cache_key)
         if cached:
             return Bank(**cached)
-        
-        result = await db.execute(
-            select(Bank).filter(Bank.code == bank_code)
-        )
+
+        result = await db.execute(select(Bank).filter(Bank.code == bank_code))
         bank = result.scalar_one_or_none()
         if bank:
             await cache.set_json(cache_key, bank.__dict__)
         return bank
 
+
 async def get_all_active_banks(db: AsyncSession) -> list[Bank]:
-    with logfire.span('get_all_active_banks'):
+    with logfire.span("get_all_active_banks"):
         cache_key = "banks:active"
         cached = await cache.get_json(cache_key)
         if cached:
             return [Bank(**bank_data) for bank_data in cached]
-        
+
         result = await db.execute(
             select(Bank).filter(Bank.is_active == True).order_by(Bank.name)
         )
@@ -47,76 +49,77 @@ async def get_all_active_banks(db: AsyncSession) -> list[Bank]:
         await cache.set_json(cache_key, [bank.__dict__ for bank in banks])
         return banks
 
+
 async def create_bank(db: AsyncSession, bank_data: BankCreate) -> Bank:
-    with logfire.span('create_bank', bank_name=bank_data.name):
+    with logfire.span("create_bank", bank_name=bank_data.name):
         # Check if bank code already exists
         existing_bank = await get_bank_by_code(db, bank_data.code)
         if existing_bank:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Bank code already exists"
+                detail="Bank code already exists",
             )
-        
+
         bank = Bank(**bank_data.model_dump())
         db.add(bank)
         await db.commit()
         await db.refresh(bank)
-        
+
         # Clear cache
         await cache.delete("banks:active")
-        
+
         return bank
 
+
 async def update_bank(db: AsyncSession, bank_id: int, bank_data: BankUpdate) -> Bank:
-    with logfire.span('update_bank', bank_id=bank_id):
+    with logfire.span("update_bank", bank_id=bank_id):
         bank = await get_bank_by_id(db, bank_id)
         if not bank:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Bank not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Bank not found"
             )
-        
+
         update_data = bank_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(bank, field, value)
-        
+
         await db.commit()
         await db.refresh(bank)
-        
+
         # Clear cache
         await cache.delete(f"bank:{bank_id}")
         await cache.delete(f"bank:code:{bank.code}")
         await cache.delete("banks:active")
-        
+
         return bank
+
 
 async def delete_bank(db: AsyncSession, bank_id: int) -> bool:
     """Delete bank by ID"""
-    with logfire.span('delete_bank', bank_id=bank_id):
+    with logfire.span("delete_bank", bank_id=bank_id):
         bank = await get_bank_by_id(db, bank_id)
         if not bank:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Bank not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Bank not found"
             )
-        
+
         await db.delete(bank)
         await db.commit()
-        
+
         # Clear cache
         await cache.delete(f"bank:{bank_id}")
         await cache.delete(f"bank:code:{bank.code}")
         await cache.delete("banks:active")
-        
+
         return True
+
 
 async def get_banks_by_country(db: AsyncSession, country: str) -> list[Bank]:
     """Get banks by country"""
-    with logfire.span('get_banks_by_country', country=country):
+    with logfire.span("get_banks_by_country", country=country):
         result = await db.execute(
-            select(Bank).filter(
-                Bank.country == country,
-                Bank.is_active == True
-            ).order_by(Bank.name)
+            select(Bank)
+            .filter(Bank.country == country, Bank.is_active == True)
+            .order_by(Bank.name)
         )
         return result.scalars().all()

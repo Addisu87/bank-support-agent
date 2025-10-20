@@ -1,11 +1,10 @@
-from sqlalchemy import (
-    Column, Integer, DateTime, Boolean
-    )
+from sqlalchemy import Boolean, Column, DateTime, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
 # Base class for models
 Base = declarative_base()
+
 
 class BaseModel(Base):
     __abstract__ = True

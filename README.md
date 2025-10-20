@@ -56,6 +56,11 @@ docker-compose logs -f web
     ```bash
     pytest tests/ -v
     ```
+7. **Format and sort imports in your entire project**
+    ```bash
+        ruff check --fix
+        ruff format
+    ```
 
 ## Usage
 

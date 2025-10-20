@@ -1,17 +1,18 @@
-import logfire
 from dataclasses import dataclass
-from sqlalchemy import select
+
+import logfire
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
+from sqlalchemy import select
 
 from app.core.config import settings
+from app.core.db_utils import get_user_db
 from app.db.schema import Account, Card, Transaction
 from app.schemas.account import AccountInfo
-from app.schemas.transaction import TransactionInfo
 from app.schemas.card import CardInfo
+from app.schemas.transaction import TransactionInfo
 from app.services.bank_service import list_banks
-from app.core.db_utils import get_user_db
 
 # ------------------------
 # 🔧 Setup
@@ -34,9 +35,9 @@ account_agent = Agent(
     account_model,
     deps_type=AccountDependencies,
     system_prompt=(
-        'You are a helpful bank support agent. You can provide customer account balances and transactions. '
-        'Always be polite and professional. When providing financial information, format numbers clearly '
-        'and explain what the data means in a conversational way.'
+        "You are a helpful bank support agent. You can provide customer account balances and transactions. "
+        "Always be polite and professional. When providing financial information, format numbers clearly "
+        "and explain what the data means in a conversational way."
     ),
     instrument=True,
 )
@@ -44,6 +45,7 @@ account_agent = Agent(
 # ------------------------
 # 🏦 Agent Tools
 # ------------------------
+
 
 @account_agent.tool
 async def get_banks(ctx: RunContext[AccountDependencies]):

@@ -1,30 +1,32 @@
+from contextlib import asynccontextmanager
+
 import logfire
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.session import engine, create_tables
-from app.core.config import settings
-from app.api.v1.router import api_router
-from app.middleware.logging import LogfireMiddleware
 
+from app.api.v1.router import api_router
+from app.core.config import settings
+from app.db.session import create_tables, engine
+from app.middleware.logging import LogfireMiddleware
 
 # Configure logfire
 if settings.LOGFIRE_TOKEN:
     logfire.configure(token=settings.LOGFIRE_TOKEN)
     logfire.instrument_pydantic_ai()
     logfire.instrument_sqlalchemy()
-    
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await create_tables()
     logfire.info("Database initialized successfully.")
     yield
-    
+
     # Shutdown
     await engine.dispose()
     logfire.info("Application shutdown complete.")
-    
+
 
 # Main FastAPI app
 app = FastAPI(
@@ -34,12 +36,10 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-origins = [
-    "http://localhost:8080"
-]
+origins = ["http://localhost:8080"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,21 +50,18 @@ app.add_middleware(
 )
 
 # Logfire middleware
-if settings.LOGFIRE_TOKEN: 
+if settings.LOGFIRE_TOKEN:
     app.add_middleware(LogfireMiddleware)
-    
-# Include routers 
-app.include_router(api_router, prefix=settings.API_V1_STR) 
+
+# Include routers
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 # Health check
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy", 
-        'service': settings.PROJECT_NAME,
-        "version": "1.0.0"
-    }
+    return {"status": "healthy", "service": settings.PROJECT_NAME, "version": "1.0.0"}
+
 
 @app.get("/")
 async def root():
@@ -72,10 +69,12 @@ async def root():
     return {
         "message": f"Welcome to {settings.PROJECT_NAME}",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
     }
+
 
 # Run locally
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level='info')
+
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

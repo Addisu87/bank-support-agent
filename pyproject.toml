@@ -43,6 +43,12 @@ dev = [
 line-length = 88
 indent-width = 4
 
+[tool.ruff.lint]
+select = [ 
+    "F",    # pyflakes
+    "I",    # isort
+]
+
 # Exclude a variety of commonly ignored directories.
 exclude = [
     ".pytest_cache",
