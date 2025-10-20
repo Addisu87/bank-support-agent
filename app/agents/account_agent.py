@@ -7,9 +7,9 @@ from pydantic_ai.providers.deepseek import DeepSeekProvider
 
 from app.core.config import settings
 from app.db.schema import Account, Card, Transaction
-from app.models.account import AccountInfo
-from app.models.transaction import TransactionInfo
-from app.models.card import CardInfo
+from app.schemas.account import AccountInfo
+from app.schemas.transaction import TransactionInfo
+from app.schemas.card import CardInfo
 from app.services.bank_service import list_banks
 from app.core.db_utils import get_user_db
 

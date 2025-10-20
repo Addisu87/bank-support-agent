@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from alembic.util.exc import CommandError
-from app.db.schema import Base
+from app.db.models.base import BaseModel
+# FORCE import all models to ensure they register with metadata
+from app.db.models.user import User
+from app.db.models.account import Account
+from app.db.models.bank import Bank
+from app.db.models.transaction import Transaction
+from app.db.models.card import Card
 
 
 # this is the Alembic Config object, which provides
@@ -28,7 +34,8 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = Base.metadata
+models = [User, Account, Bank, Transaction, Card]
+target_metadata = BaseModel.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

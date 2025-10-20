@@ -1,116 +1,56 @@
-import logfire
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.models.user import UserRegister, UserLogin, RegisterResponse, UserResponse, PasswordUpdate, Token
-from app.core.security import create_access_token, get_password_hash, verify_password
-from app.core.deps import authenticate_user, get_current_active_user
+from app.schemas.user import UserCreate, UserResponse, Token
+from fastapi.security import OAuth2PasswordRequestForm
+from app.core.security import create_access_token
+from app.core.deps import  get_current_active_user
 from app.db.session import AsyncSession
-from app.db.session import get_session
-from app.db.schema import User
-from sqlalchemy import select
-from app.utils.constants import access_token_expire_minutes
+from app.db.session import get_db
+from app.db.models.user import User
+from app.core.config import settings
 from datetime import timedelta
-from typing import cast
+from app.services.user_service import create_user, authenticate_user,change_user_password
 
-router = APIRouter()
+router = APIRouter(tags=['authentication'])
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
-    user: UserRegister,
-    db: AsyncSession = Depends(get_session)
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db)
 ):
     """Register a new user account."""
-    query = await db.execute(select(User).filter_by(email=user.email))
-    existing_user = query.scalar_one_or_none()
-    
-    if existing_user:
-        logfire.info("User already exists!")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A user with that email already exists!",
-        )
+    user = await create_user(db, user_data)
+    return user
 
-    hashed_password = get_password_hash(user.password)
-    db_user = User(
-        email=user.email,
-        hashed_pwd=hashed_password,
-        full_name=user.full_name,
-        roles=user.roles,
-        is_active=True 
-    )
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    
-    # Return proper response
-    return RegisterResponse(
-        status="success",
-        message="User registered successfully",
-        user=UserResponse.model_validate(db_user)
-    )
-
-# @router.post("/token", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-# async def login(
-#     user_data: UserLogin,
-#     db: AsyncSession = Depends(get_session)
-# ):
-#     """Login user and return complete user information with tokens."""
-#     auth_user = await authenticate_user(user_data.email, user_data.password, db)
-    
-#     access_token = create_access_token(auth_user.email)
-#     refresh_token = create_refresh_token(auth_user.email) 
-#     return LoginResponse(
-#         access_token=access_token,
-#         refresh_token=refresh_token,
-#         token_type="bearer",
-#         user=UserResponse.model_validate(auth_user),
-#         expires_in=3600
-#     )
-
-@router.post("/token")
+@router.post("/token", response_model=Token)
 async def login(
-    user_data: UserLogin,
-    db: AsyncSession = Depends(get_session)
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
 ) -> Token:
-    user = await authenticate_user(user_data.email, user_data.password, db)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect username or password")
-    access_token_expires = timedelta(minutes=access_token_expire_minutes())
+    user = await authenticate_user(db, form_data.username, form_data.password)
+    if not user: 
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
     access_token = create_access_token(
-        data={"sub": user_data.email},
+        data={"sub": user.email},
         expires_delta=access_token_expires,
     )
     return Token(access_token=access_token, token_type="bearer")
     
-@router.patch("/{user_id}/password", status_code=status.HTTP_200_OK)
-async def update_password(
-    user_id: int,
-    password_data: PasswordUpdate,
+@router.post("/{user_id}/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    current_password: str, 
+    new_password: str,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
+    db: AsyncSession = Depends(get_db)
 ):
-    """Update user password."""
-    if user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to update this user's password"
-        )
-
-    db_user = await db.get(User, user_id)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    # Verify current password
-
-    if not verify_password(password_data.current_password, cast(str, db_user.hashed_pwd)):
+    """Change user password"""
+    success = await change_user_password(db, current_user.id, current_password, new_password)
+    
+    if not success: 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect"
+            detail='Current password is incorrect'
         )
 
-    # Update to new password
-    db_user.hashed_pwd = get_password_hash(password_data.new_password)  # type: ignore
-    await db.commit()
-    
-    return {"status": "success", "message": "Password updated successfully"}
+    return {"message": "Password updated successfully"}

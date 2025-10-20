@@ -1,8 +1,4 @@
-"""
-Chat and AI agent related models
-"""
 from pydantic import BaseModel, ConfigDict
-
 
 class ChatRequest(BaseModel):
     """Request model for agent chat"""

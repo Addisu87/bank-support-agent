@@ -2,10 +2,8 @@ import jwt
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from app.core.config import settings
-from app.utils.constants import access_token_expire_minutes
-
 from datetime import datetime, timedelta, timezone
-from app.models.user import TokenData
+from app.schemas.user import TokenData
 
 # configure logfire
 import logfire
@@ -20,18 +18,18 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=access_token_expire_minutes())
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
-def create_refresh_token(data: dict, expires_delta: timedelta | None = None):
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create refresh token"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=7)  # 7 days for refresh token
+        expire = datetime.now(timezone.utc) + timedelta(days=7) 
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

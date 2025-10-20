@@ -39,7 +39,24 @@ This project is a FastAPI-based bank support agent that uses a combination of AI
     alembic revision --autogenerate -m "message"
     alembic upgrade head
     ```
-s
+5. **Run with Docker**
+    ```bash
+    # Start all services
+    docker-compose up -d
+
+    # Run migrations and seed banks
+    docker-compose exec web alembic upgrade head
+    docker-compose exec web python scripts/seed_banks.py
+    ```
+
+# Check logs
+docker-compose logs -f web
+    ```
+6. **Run Tests**
+    ```bash
+    pytest tests/ -v
+    ```
+
 ## Usage
 
 1.  **Sync with OBP Sandbox:**

@@ -2,44 +2,42 @@ import logfire
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.session import engine, init_db
+from app.db.session import engine, create_tables
 from app.core.config import settings
+from app.api.v1.router import api_router
+from app.middleware.logging import LogfireMiddleware
 
-# REST routers
-from app.api.v1.auth import router as auth_router
-from app.api.v1.users import router as users_router
-from app.api.v1.accounts import router as account_router
-from app.api.v1.agent import router as agent_router
-from app.api.v1.banks import router as banks_router
 
 # Configure logfire
 if settings.LOGFIRE_TOKEN:
     logfire.configure(token=settings.LOGFIRE_TOKEN)
     logfire.instrument_pydantic_ai()
-
+    logfire.instrument_sqlalchemy()
+    
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    await init_db()
+    await create_tables()
     logfire.info("Database initialized successfully.")
     yield
     
     # Shutdown
     await engine.dispose()
     logfire.info("Application shutdown complete.")
+    
 
 # Main FastAPI app
-app = FastAPI(title="Bank Agent Unified App", lifespan=lifespan)
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    description="A modern banking system with AI support agent",
+    version="1.0.0",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
 
-# REST routes
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
-app.include_router(agent_router, prefix="/api/v1/agent", tags=["agent"])
-app.include_router(banks_router, prefix="/api/v1/banks", tags=["banks"])
-app.include_router(account_router, prefix="/api/v1/accounts", tags=["accounts"])
-# CORS
 origins = [
-    "http://127.0.0.1",
     "http://localhost:8080"
 ]
 
@@ -51,14 +49,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Logfire middleware
+if settings.LOGFIRE_TOKEN: 
+    app.add_middleware(LogfireMiddleware)
+    
+# Include routers 
+app.include_router(api_router, prefix=settings.API_V1_STR) 
+
 
 # Health check
 @app.get("/health")
-async def health():
-    return {"status": "ok"}
+async def health_check():
+    return {
+        "status": "healthy", 
+        'service': settings.PROJECT_NAME,
+        "version": "1.0.0"
+    }
 
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": f"Welcome to {settings.PROJECT_NAME}",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 # Run locally
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level='info')
