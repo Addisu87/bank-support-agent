@@ -16,8 +16,9 @@ async def get_bank_by_id(db: AsyncSession, bank_id: int) -> Bank:
 async def get_bank_by_code(db: AsyncSession, bank_code: str) -> Bank:
     with logfire.span("get_bank_by_code", bank_code=bank_code):
         result = await db.execute(select(Bank).filter(Bank.code == bank_code))
-        bank =  result.scalar_one_or_none()
+        bank = result.scalar_one_or_none()
         return bank
+
 
 async def get_all_active_banks(db: AsyncSession) -> list[Bank]:
     with logfire.span("get_all_active_banks"):
@@ -27,6 +28,7 @@ async def get_all_active_banks(db: AsyncSession) -> list[Bank]:
         banks = result.scalars().all()
         return banks
 
+
 async def get_banks_by_country(db: AsyncSession, country: str) -> list[Bank]:
     """Get banks by country"""
     with logfire.span("get_banks_by_country", country=country):
@@ -35,8 +37,9 @@ async def get_banks_by_country(db: AsyncSession, country: str) -> list[Bank]:
             .filter(Bank.country == country, Bank.is_active == True)
             .order_by(Bank.name)
         )
-        banks =  result.scalars().all()
+        banks = result.scalars().all()
         return banks
+
 
 async def create_bank(db: AsyncSession, bank_data: BankCreate) -> Bank:
     with logfire.span("create_bank", bank_name=bank_data.name):

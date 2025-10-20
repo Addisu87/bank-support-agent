@@ -3,7 +3,6 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 
-from app.core.cache import cache
 from app.core.config import settings
 
 # ------------------------
@@ -19,6 +18,7 @@ logfire.instrument_pydantic_ai()
 
 def create_banking_agent() -> Agent:
     """Create a simple banking conversation agent"""
+
     model = OpenAIChatModel(
         model_name=settings.PYDANTIC_AI_MODEL,
         provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY),
@@ -60,38 +60,17 @@ banking_agent = create_banking_agent()
 # ------------------------
 
 
-async def chat_with_agent(user_query: str, use_cache: bool = True) -> str:
+async def chat_with_agent(user_query: str) -> str:
     """Simple function to chat with the banking agent"""
     with logfire.span("agent_chat", user_query=user_query):
-        # Check cache first if enabled
-        if use_cache:
-            cache_key = f"agent_response:{hash(user_query)}"
-            cached_response = await cache.get(cache_key)
-            if cached_response:
-                logfire.info("Returning cached agent response")
-                return cached_response
-
         try:
+            logfire.info("Calling banking agent...")
             result = await banking_agent.run(user_query)
-            response = result.data
-
-            # Cache the response if enabled
-            if use_cache:
-                await cache.set(cache_key, response, expire=3600)  # 1 hour
-
+            response = str(result)
+            
+            logfire.info("Agent response successful")
             return response
 
         except Exception as e:
-            logfire.error("Agent chat error", error=str(e))
-            return "I apologize, but I'm having trouble responding right now. Please try again later or contact our support team for immediate assistance."
-
-
-async def clear_agent_cache() -> int:
-    """Clear all cached agent responses"""
-    with logfire.span("clear_agent_cache"):
-        pattern = "agent_response:*"
-        keys = await cache.redis.keys(pattern)
-        if keys:
-            await cache.redis.delete(*keys)
-            logfire.info(f"Cleared {len(keys)} cached responses")
-        return len(keys)
+            logfire.error("Agent chat error", error=str(e), error_type=type(e).__name__)
+            return "I apologize, but I'm having trouble connecting to the AI service right now. Please try again later or contact our support team."
