@@ -11,7 +11,7 @@ from app.services.user_service import (
     update_user,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["users"])
 
 
 @router.get("/", response_model=list[UserResponse])
@@ -23,7 +23,7 @@ async def get_users(
     # Add admin check if needed
     if not current_user.is_active:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     users = await get_all_users(db)
     return [UserResponse.model_validate(user) for user in users]
 
@@ -51,11 +51,8 @@ async def update_current_user(
 ):
     # Check if user can only update their own profile
     if user_id != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=403,
-            detail="Can only update your own profile"
-    )
-    
+        raise HTTPException(status_code=403, detail="Can only update your own profile")
+
     """Update a user's profile by user ID."""
     updated_user = await update_user(db, user_id, user_data)
     return updated_user
@@ -70,7 +67,7 @@ async def delete_existing_user(
     # Prevent users from deleting other people's accounts
     if user_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Can only delete your own account")
-    
+
     """Delete a user by their ID."""
     await delete_user(db, user_id)
-    return None
+    return {"message": "Successfully delete a user!"}
