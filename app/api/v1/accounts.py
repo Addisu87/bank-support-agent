@@ -9,12 +9,15 @@ from app.schemas.account import (
     AccountBalance,
     AccountCreate,
     AccountResponse,
-    TransferRequest,
+    AccountUpdate,
 )
 from app.services.account_service import (
     create_account,
+    delete_account,
+    get_account_by_id,
     get_account_by_number,
     get_user_accounts,
+    update_account,
 )
 
 router = APIRouter(tags=["accounts"])
@@ -48,7 +51,7 @@ async def get_account(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get specific account details"""
-    account = await get_user_accounts(db, account_id)
+    account = await get_account_by_id(db, account_id)
 
     if not account or account.user_id != current_user.id:
         raise HTTPException(
@@ -72,27 +75,27 @@ async def get_account_balance(
             status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
         )
 
-    return AccountBalance(
-        account_number=account.account_number,
-        balance=account.balance,
-        currency=account.currency,
-    )
+    return AccountBalance.model_validate(account)
 
 
-@router.post("/transfer", status_code=status.HTTP_200_OK)
-async def transfer_funds(
-    transfer_data: TransferRequest,
+@router.put("/{account_id}", response_model=AccountResponse)
+async def update_account_details(
+    account_id: int,
+    account_data: AccountUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Transfer funds between accounts"""
-    # Verify source account belongs to user
-    from_account = await get_account_by_number(db, transfer_data.from_account_number)
+    """Update account details"""
+    account = await update_account(db, account_id, account_data, current_user.id)
+    return account
 
-    if not from_account or from_account.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
-        )
 
-    result = await transfer_funds(transfer_data)
-    return {"message": "Transfer completed successfully", "details": result}
+@router.delete("/{account_id}")
+async def delete_user_account(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """ "Delete user account"""
+    await delete_account(db, account_id, current_user.id)
+    return None

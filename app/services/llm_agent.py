@@ -67,7 +67,7 @@ async def chat_with_agent(user_query: str) -> str:
             logfire.info("Calling banking agent...")
             result = await banking_agent.run(user_query)
             response = str(result)
-            
+
             logfire.info("Agent response successful")
             return response
 

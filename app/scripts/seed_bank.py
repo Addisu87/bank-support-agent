@@ -40,16 +40,16 @@ async def seed_banks():
             "address": "456 Banking Avenue, San Francisco, CA 94105",
         },
         {
-            "name": "Metropolitan Credit Union",
-            "code": "MCU",
-            "swift_code": "METCUS33",
+            "name": "Abyssinia Bank",
+            "code": "AB",
+            "swift_code": "ABCUS33",
             "routing_number": "555666777",
-            "country": "United States",
+            "country": "Ethiopia",
             "currency": "USD",
-            "contact_email": "help@metrocu.org",
+            "contact_email": "help@abet.org",
             "contact_phone": "+1-800-555-0125",
-            "website": "https://www.metrocu.org",
-            "address": "789 Union Street, Chicago, IL 60601",
+            "website": "https://www.abet.org",
+            "address": "789 Semit Street, Addis Ababa, IL 60601",
         },
     ]
 

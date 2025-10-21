@@ -7,8 +7,10 @@ from pydantic_ai.providers.deepseek import DeepSeekProvider
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.db_utils import get_user_db
-from app.db.schema import Account, Card, Transaction
+from app.core.session import get_user_db
+from app.db.models.account import Account
+from app.db.models.card import Card
+from app.db.models.transaction import Transaction
 from app.schemas.account import AccountInfo
 from app.schemas.card import CardInfo
 from app.schemas.transaction import TransactionInfo

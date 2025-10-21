@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.db.models.transaction import TransactionStatus, TransactionType
 
@@ -17,6 +17,7 @@ class TransactionCreate(TransactionBase):
     model_config = ConfigDict(from_attributes=True)
     account_id: int
     reference: str | None = None
+    card_id: int | None = None
 
 
 class TransactionResponse(TransactionBase):
@@ -29,6 +30,7 @@ class TransactionResponse(TransactionBase):
     reference: str
     status: TransactionStatus
     merchant: str | None = None
+    card_id: int | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -45,9 +47,37 @@ class TransactionQuery(BaseModel):
 
 
 class TransferRequest(BaseModel):
-    """Request model for fund transfers"""
-
     from_account_number: str
     to_account_number: str
     amount: float
-    description: str | None = "Fund transfer"
+    description: str = "Fund transfer"
+
+    @field_validator("amount")
+    def amount_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be positive")
+        return v
+
+
+class DepositRequest(BaseModel):
+    account_number: str
+    amount: float
+    description: str = "Deposit"
+
+    @field_validator("amount")
+    def amount_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be positive")
+        return v
+
+
+class WithdrawRequest(BaseModel):
+    account_number: str
+    amount: float
+    description: str = "Withdrawal"
+
+    @field_validator("amount")
+    def amount_positive(cls, v):
+        if v <= 0:
+            raise ValueError("Amount must be positive")
+        return v

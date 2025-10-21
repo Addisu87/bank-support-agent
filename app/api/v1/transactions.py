@@ -6,16 +6,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_active_user, get_db
 from app.db.models.user import User
 from app.schemas.transaction import (
+    DepositRequest,
     TransactionQuery,
     TransactionResponse,
     TransferRequest,
+    WithdrawRequest,
 )
-from app.services.account_service import get_account_by_number, transfer_funds
+from app.services.account_service import get_account_by_id
 from app.services.transaction_service import (
     create_interbank_transfer,
+    deposit_funds,
     get_account_transactions,
     get_recent_transactions,
+    get_transaction_by_id,
     get_transaction_summary,
+    transfer_funds,
+    withdraw_funds,
 )
 
 router = APIRouter(tags=["transactions"])
@@ -30,8 +36,6 @@ async def get_transactions(
     """Get transactions with filtering"""
     # Verify account belongs to user if specified
     if query.account_id:
-        from app.services.account_service import get_account_by_id
-
         account = await get_account_by_id(db, query.account_id)
         if not account or account.user_id != current_user.id:
             raise HTTPException(
@@ -61,8 +65,6 @@ async def get_account_transaction_summary(
 ):
     """Get transaction summary for an account"""
     # Verify account belongs to user
-    from app.services.account_service import get_account_by_id
-
     account = await get_account_by_id(db, account_id)
     if not account or account.user_id != current_user.id:
         raise HTTPException(
@@ -71,26 +73,6 @@ async def get_account_transaction_summary(
 
     summary = await get_transaction_summary(db, account_id)
     return summary
-
-
-@router.post("/transfer", status_code=status.HTTP_200_OK)
-async def transfer_funds_endpoint(
-    transfer_data: TransferRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Transfer funds between accounts"""
-    # Verify source account belongs to user
-    from_account = await get_account_by_number(db, transfer_data.from_account_number)
-
-    if not from_account or from_account.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
-        )
-
-    # Perform the transfer
-    result = await transfer_funds(db, transfer_data)
-    return {"message": "Transfer completed successfully", "details": result}
 
 
 @router.post("/interbank-transfer", status_code=status.HTTP_200_OK)
@@ -104,8 +86,6 @@ async def interbank_transfer(
 ):
     """Create inter-bank transfer"""
     # Verify source account belongs to user
-    from app.services.account_service import get_account_by_id
-
     from_account = await get_account_by_id(db, from_account_id)
 
     if not from_account or from_account.user_id != current_user.id:
@@ -133,9 +113,6 @@ async def get_transaction(
     current_user: User = Depends(get_current_active_user),
 ):
     """Get specific transaction details"""
-    from app.services.account_service import get_account_by_id
-    from app.services.transaction_service import get_transaction_by_id
-
     transaction = await get_transaction_by_id(db, transaction_id)
     if not transaction:
         raise HTTPException(
@@ -151,3 +128,36 @@ async def get_transaction(
         )
 
     return transaction
+
+
+@router.post("/deposit", response_model=TransactionResponse)
+async def deposit_to_account(
+    deposit_data: DepositRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Deposit funds to account"""
+    transaction = await deposit_funds(db, deposit_data, current_user.id)
+    return transaction
+
+
+@router.post("/withdraw", response_model=TransactionResponse)
+async def withdraw_from_account(
+    withdraw_data: WithdrawRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Withdraw funds from account"""
+    transaction = await withdraw_funds(db, withdraw_data, current_user.id)
+    return transaction
+
+
+@router.post("/transfer", status_code=status.HTTP_200_OK)
+async def transfer_from_account(
+    transfer_data: TransferRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Transfer funds between accounts"""
+    result = await transfer_funds(db, transfer_data, current_user.id)
+    return {"message": "Transfer completed successfully", "details": result}

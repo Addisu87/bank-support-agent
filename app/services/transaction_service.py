@@ -2,18 +2,23 @@ import uuid
 
 import logfire
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.account import Account
 from app.db.models.transaction import Transaction, TransactionStatus, TransactionType
-from app.schemas.transaction import TransactionCreate, TransactionQuery
+from app.schemas.transaction import (
+    DepositRequest,
+    TransactionCreate,
+    TransactionQuery,
+    TransferRequest,
+    WithdrawRequest,
+)
 from app.services.account_service import (
     get_account_by_id,
     get_account_by_number,
-    update_account_balance,
+    update_account_balance_internal,
 )
-from app.services.card_service import get_card_by_number, validate_card_transaction
 
 # ------------------------
 # 🔧 Utility Functions
@@ -31,7 +36,9 @@ async def generate_transaction_reference() -> str:
 
 
 async def create_transaction(
-    db: AsyncSession, transaction_data: TransactionCreate
+    db: AsyncSession,
+    transaction_data: TransactionCreate,
+    status: TransactionStatus = TransactionStatus.COMPLETED,
 ) -> Transaction:
     with logfire.span(
         "create_transaction",
@@ -46,13 +53,10 @@ async def create_transaction(
             )
 
         transaction = Transaction(
-            account_id=transaction_data.account_id,
-            amount=transaction_data.amount,
-            transaction_type=transaction_data.transaction_type,
-            description=transaction_data.description,
+            **transaction_data.model_dump(),
             reference=transaction_data.reference
             or await generate_transaction_reference(),
-            status=TransactionStatus.COMPLETED,
+            status=status,
         )
 
         db.add(transaction)
@@ -64,6 +68,7 @@ async def create_transaction(
 
 async def get_transaction_by_id(db: AsyncSession, transaction_id: int) -> Transaction:
     with logfire.span("get_transaction_by_id", transaction_id=transaction_id):
+        """Get transaction by ID"""
         return await db.get(Transaction, transaction_id)
 
 
@@ -71,7 +76,9 @@ async def get_transaction_by_reference(db: AsyncSession, reference: str) -> Tran
     """Get transaction by reference number"""
     with logfire.span("get_transaction_by_reference", reference=reference):
         result = await db.execute(
-            select(Transaction).filter(Transaction.reference == reference)
+            select(Transaction)
+            .filter(Transaction.reference == reference)
+            .order_by(Transaction.created_at.desc())
         )
         return result.scalar_one_or_none()
 
@@ -103,42 +110,38 @@ async def get_account_transactions(
 
 async def get_transaction_summary(db: AsyncSession, account_id: int) -> dict:
     with logfire.span("get_transaction_summary", account_id=account_id):
-        # Get total deposits
-        deposit_stmt = select(Transaction.amount).filter(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.transaction_type == TransactionType.DEPOSIT,
-            )
+        """Get transaction summary for an account"""
+        deposit_stmt = select(Transaction.transaction_type, Transaction.amount).filter(
+            Transaction.account_id == account_id
         )
         result = await db.execute(deposit_stmt)
-        total_deposits = sum(row[0] for row in result.fetchall() or [0])
+        transactions = result.fetchall()
 
-        # Get total withdrawals
-        withdrawal_stmt = select(Transaction.amount).filter(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.transaction_type == TransactionType.WITHDRAWAL,
-            )
-        )
-        result = await db.execute(withdrawal_stmt)
-        total_withdrawals = sum(row[0] for row in result.fetchall() or [0])
-
-        # Get total transfers
-        transfer_stmt = select(Transaction.amount).filter(
-            and_(
-                Transaction.account_id == account_id,
-                Transaction.transaction_type == TransactionType.TRANSFER,
-            )
-        )
-        result = await db.execute(transfer_stmt)
-        total_transfers = sum(row[0] for row in result.fetchall() or [0])
-
-        return {
-            "total_deposits": total_deposits,
-            "total_withdrawals": total_withdrawals,
-            "total_transfers": total_transfers,
-            "net_flow": total_deposits - total_withdrawals - total_transfers,
+        summary = {
+            "total_deposits": 0,
+            "total_withdrawals": 0,
+            "total_transfers": 0,
+            "total_payments": 0,
         }
+
+        for tx_type, amount in transactions:
+            if tx_type == TransactionType.DEPOSIT:
+                summary["total_deposits"] += amount
+            elif tx_type == TransactionType.WITHDRAWAL:
+                summary["total_withdrawals"] += amount
+            elif tx_type == TransactionType.TRANSFER:
+                summary["total_transfers"] += amount
+            elif tx_type == TransactionType.PAYMENT:
+                summary["total_payments"] += amount
+
+        summary["net_flow"] = (
+            summary["total_deposits"]
+            - summary["total_withdrawals"]
+            - summary["total_transfers"]
+            - summary["total_payments"]
+        )
+
+        return summary
 
 
 async def get_recent_transactions(
@@ -171,52 +174,148 @@ async def delete_transaction(db: AsyncSession, transaction_id: int) -> bool:
 
 
 # ------------------------
-# 💳 Card Transaction Functions
+# 💰 Business Operations
 # ------------------------
 
 
-async def create_transaction_with_card(
-    db: AsyncSession, transaction_data: TransactionCreate, card_number: str
+async def deposit_funds(
+    db: AsyncSession, deposit_data: DepositRequest, user_id: int
 ) -> Transaction:
-    with logfire.span(
-        "create_transaction_with_card",
-        card_number=card_number[-4:],
-        amount=transaction_data.amount,
-    ):
-        # Verify card and account
-        if not await validate_card_transaction(
-            db, card_number, transaction_data.amount
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Card transaction not authorized",
-            )
-
-        card = await get_card_by_number(db, card_number)
-        transaction_data.card_id = card.id
-
-        return await create_transaction(db, transaction_data)
-
-
-async def get_card_transactions(
-    db: AsyncSession, card_id: int, limit: int = 50, offset: int = 0
-) -> list[Transaction]:
-    with logfire.span("get_card_transactions", card_id=card_id):
-        stmt = (
-            select(Transaction)
-            .filter(Transaction.card_id == card_id)
-            .order_by(Transaction.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+    """Deposit funds into account"""
+    account = await get_account_by_number(db, deposit_data.account_number)
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
         )
 
-        result = await db.execute(stmt)
-        return result.scalars().all()
+    # Check if user owns the account (if user_id is provided)
+    if user_id and account.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to deposit to this account",
+        )
+
+    # Update account balance
+    account.balance += deposit_data.amount
+    account.available_balance += deposit_data.amount
+
+    # Create transaction record
+    transaction_data = TransactionCreate(
+        account_id=account.id,
+        amount=deposit_data.amount,
+        transaction_type=TransactionType.DEPOSIT,
+        description=deposit_data.description,
+    )
+
+    transaction = await create_transaction(db, transaction_data)
+    await db.commit()
+    return transaction
 
 
-# ------------------------
-# 🏦 Transfer Functions
-# ------------------------
+async def withdraw_funds(
+    db: AsyncSession, withdraw_data: WithdrawRequest, user_id: int
+) -> Transaction:
+    """Withdraw funds from account"""
+    account = await get_account_by_number(db, withdraw_data.account_number)
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+
+    # Check if user owns the account (if user_id is provided)
+    if user_id and account.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to withdraw from this account",
+        )
+
+    # Check sufficient funds
+    if account.available_balance < withdraw_data.amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
+        )
+
+    # Update account balance
+    account.balance -= withdraw_data.amount
+    account.available_balance -= withdraw_data.amount
+
+    # Create transaction record
+    transaction_data = TransactionCreate(
+        account_id=account.id,
+        amount=-withdraw_data.amount,  # Negative amount for withdrawal
+        transaction_type=TransactionType.WITHDRAWAL,
+        description=withdraw_data.description,
+    )
+
+    transaction = await create_transaction(db, transaction_data)
+    await db.commit()
+    return transaction
+
+
+async def transfer_funds(
+    db: AsyncSession, transfer_data: TransferRequest, user_id: int
+) -> dict:
+    """Transfer funds between accounts"""
+    from_account = await get_account_by_number(db, transfer_data.from_account_number)
+    to_account = await get_account_by_number(db, transfer_data.to_account_number)
+
+    if not from_account or not to_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or both accounts not found",
+        )
+
+    # Check if user owns the from_account (if user_id is provided)
+    if user_id and from_account.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to transfer from this account",
+        )
+
+    if from_account.balance < transfer_data.amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
+        )
+
+    # Update balances
+    await update_account_balance_internal(db, from_account.id, -transfer_data.amount)
+    await update_account_balance_internal(db, to_account.id, transfer_data.amount)
+
+    # Create transaction records for both accounts
+    reference = await generate_transaction_reference()
+
+    # Outgoing transaction
+    outgoing_tx_data = TransactionCreate(
+        account_id=from_account.id,
+        amount=-transfer_data.amount,
+        transaction_type=TransactionType.TRANSFER,
+        description=f"Transfer to {to_account.account_number} - {transfer_data.description}",
+        reference=reference,
+    )
+
+    # Incoming transaction
+    incoming_tx_data = TransactionCreate(
+        account_id=to_account.id,
+        amount=transfer_data.amount,
+        transaction_type=TransactionType.TRANSFER,
+        description=f"Transfer from {from_account.account_number} - {transfer_data.description}",
+        reference=reference,
+    )
+
+    # Create transactions without storing the returned objects
+    await create_transaction(db, outgoing_tx_data)
+    await create_transaction(db, incoming_tx_data)
+
+    await db.commit()
+
+    return {
+        "message": "Transfer completed successfully",
+        "reference": reference,
+        "from_account": from_account.account_number,
+        "to_account": to_account.account_number,
+        "amount": transfer_data.amount,
+        "new_balance": from_account.balance,
+    }
 
 
 async def create_interbank_transfer(
@@ -224,129 +323,42 @@ async def create_interbank_transfer(
     from_account_id: int,
     to_account_number: str,
     amount: float,
-    description: str = None,
-) -> dict:
-    """Create inter-bank transfer"""
-    with logfire.span(
-        "interbank_transfer", from_account_id=from_account_id, amount=amount
-    ):
-        # Get source account
-        from_account = await get_account_by_id(db, from_account_id)
-        if not from_account:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
-            )
-
-        # Check if target account is in same bank
-        to_account = await get_account_by_number(db, to_account_number)
-        if to_account and to_account.bank_id == from_account.bank_id:
-            # Same bank transfer
-            return await create_same_bank_transfer(
-                db, from_account_id, to_account.id, amount, description
-            )
-        else:
-            # Inter-bank transfer
-            return await create_interbank_transfer_processing(
-                db, from_account, to_account_number, amount, description
-            )
-
-
-async def create_same_bank_transfer(
-    db: AsyncSession,
-    from_account_id: int,
-    to_account_id: int,
-    amount: float,
-    description: str = None,
-) -> dict:
-    """Create same bank transfer"""
-    with logfire.span(
-        "same_bank_transfer",
-        from_account_id=from_account_id,
-        to_account_id=to_account_id,
-        amount=amount,
-    ):
-        # Update balances
-        from_account = await update_account_balance(db, from_account_id, -amount)
-        to_account = await update_account_balance(db, to_account_id, amount)
-
-        # Create transaction records
-        transfer_desc = f"Transfer to account {to_account.account_number}" + (
-            f" - {description}" if description else ""
-        )
-
-        outgoing_tx = Transaction(
-            account_id=from_account_id,
-            amount=-amount,
-            transaction_type=TransactionType.TRANSFER,
-            description=transfer_desc,
-            reference=await generate_transaction_reference(),
-            status=TransactionStatus.COMPLETED,
-        )
-
-        incoming_tx = Transaction(
-            account_id=to_account_id,
-            amount=amount,
-            transaction_type=TransactionType.TRANSFER,
-            description=f"Transfer from account {from_account.account_number}",
-            reference=outgoing_tx.reference,  # Same reference for both sides
-            status=TransactionStatus.COMPLETED,
-        )
-
-        db.add_all([outgoing_tx, incoming_tx])
-        await db.commit()
-
-        return {
-            "message": "Transfer completed successfully",
-            "reference": outgoing_tx.reference,
-            "from_account": from_account.account_number,
-            "to_account": to_account.account_number,
-            "amount": amount,
-            "new_balance": from_account.balance,
-        }
-
-
-async def create_interbank_transfer_processing(
-    db: AsyncSession,
-    from_account: Account,
-    to_account_number: str,
-    amount: float,
     description: str,
 ) -> dict:
-    """Process inter-bank transfer (simplified implementation)"""
-    with logfire.span(
-        "interbank_transfer_processing",
-        from_account=from_account.account_number,
-        amount=amount,
-    ):
-        # Update source account balance
-        from_account = await update_account_balance(db, from_account.id, -amount)
-
-        # Create transaction record
-        transaction = Transaction(
-            account_id=from_account.id,
-            amount=-amount,
-            transaction_type=TransactionType.TRANSFER,
-            description=f"Inter-bank transfer to {to_account_number}"
-            + (f" - {description}" if description else ""),
-            reference=f"IBT{uuid.uuid4().hex[:12].upper()}",
-            status=TransactionStatus.PENDING,  # Inter-bank transfers might be pending
-            metadata={
-                "type": "interbank",
-                "to_account": to_account_number,
-                "from_bank": from_account.bank.name if from_account.bank else "Unknown",
-                "processing_fee": 0.0,
-            },
+    """Create inter-bank transfer (simplified implementation)"""
+    from_account = await get_account_by_id(db, from_account_id)
+    if not from_account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
         )
 
-        db.add(transaction)
-        await db.commit()
+    # Update source account balance
+    from_account.balance -= amount
+    from_account.available_balance -= amount
 
-        return {
-            "message": "Inter-bank transfer initiated",
-            "reference": transaction.reference,
-            "amount": amount,
-            "from_account": from_account.account_number,
-            "to_account": to_account_number,
-            "fee": 0.0,
-            "status": "pending",
-        }
+    # Create transaction record
+    transaction_data = TransactionCreate(
+        account_id=from_account.id,
+        amount=-amount,
+        transaction_type=TransactionType.TRANSFER,
+        description=f"Inter-bank transfer to {to_account_number}"
+        + (f" - {description}" if description else ""),
+    )
+
+    transaction = await create_transaction(
+        db,
+        transaction_data,
+        status=TransactionStatus.PENDING,  # Inter-bank transfers might be pending
+    )
+
+    await db.commit()
+
+    return {
+        "message": "Inter-bank transfer initiated",
+        "reference": transaction.reference,
+        "amount": amount,
+        "from_account": from_account.account_number,
+        "to_account": to_account_number,
+        "fee": 0.0,
+        "status": "pending",
+    }

@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from app.db.models.account import AccountStatus, AccountType
+from app.schemas.bank import BankResponse
 
 
 class AccountBase(BaseModel):
@@ -15,7 +16,8 @@ class AccountCreate(AccountBase):
 
 
 class AccountUpdate(BaseModel):
-    status: str | None = None
+    status: AccountStatus | None = None
+    account_type: AccountType | None = None
 
 
 class AccountResponse(BaseModel):
@@ -26,33 +28,23 @@ class AccountResponse(BaseModel):
     bank_id: int
     bank_name: str
     account_number: str
+    account_type: AccountType
+    balance: float
     available_balance: float
+    currency: str
     status: AccountStatus
     created_at: datetime
-    updated_at: datetime | None
-
-    @classmethod
-    def from_orm(cls, obj):
-        # Custom from_orm to include bank name
-        data = super().from_orm(obj)
-        data.bank_name = obj.bank.name if obj.bank else "Unknown"
-        return data
+    updated_at: datetime | None = None
+    bank = BankResponse
 
 
 class AccountBalance(BaseModel):
     account_number: str
-    balance: str
+    balance: float
+    available_balance: float
     currency: str
 
 
-class TransferRequest(BaseModel):
-    from_account_number: str
-    to_account_number: str
-    amount: float
-    description: str = "Fund transfer"
-
-    @field_validator("amount")
-    def amount_positive(cls, v):
-        if v <= 0:
-            raise ValueError("Amount must be positive")
-        return v
+class AccountCreateResponse(BaseModel):
+    message: str
+    account: AccountResponse

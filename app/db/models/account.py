@@ -36,7 +36,7 @@ class Account(BaseModel):
     balance = Column(Float, default=0.0, nullable=False)
     available_balance = Column(Float, default=0.0, nullable=False)
     currency = Column(String(3), default="USD", nullable=False)
-    status = Column(String(20), default="active", nullable=False)
+    status = Column(SQLEnum(AccountStatus), default=AccountStatus.ACTIVE, nullable=False)
     overdraft_limit = Column(Float, default=0.0)
 
     # Relationships
