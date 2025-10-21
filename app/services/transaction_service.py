@@ -17,7 +17,7 @@ from app.schemas.transaction import (
 from app.services.account_service import (
     get_account_by_id,
     get_account_by_number,
-    update_account_balance_internal,
+    update_account_balance,
 )
 
 # ------------------------
@@ -38,7 +38,7 @@ async def generate_transaction_reference() -> str:
 async def create_transaction(
     db: AsyncSession,
     transaction_data: TransactionCreate,
-    status: TransactionStatus = TransactionStatus.COMPLETED,
+    transaction_status: TransactionStatus = TransactionStatus.COMPLETED,
 ) -> Transaction:
     with logfire.span(
         "create_transaction",
@@ -56,7 +56,7 @@ async def create_transaction(
             **transaction_data.model_dump(),
             reference=transaction_data.reference
             or await generate_transaction_reference(),
-            status=status,
+            status=transaction_status,
         )
 
         db.add(transaction)
@@ -278,8 +278,8 @@ async def transfer_funds(
         )
 
     # Update balances
-    await update_account_balance_internal(db, from_account.id, -transfer_data.amount)
-    await update_account_balance_internal(db, to_account.id, transfer_data.amount)
+    await update_account_balance(db, from_account.id, -transfer_data.amount)
+    await update_account_balance(db, to_account.id, transfer_data.amount)
 
     # Create transaction records for both accounts
     reference = await generate_transaction_reference()
@@ -324,6 +324,7 @@ async def create_interbank_transfer(
     to_account_number: str,
     amount: float,
     description: str,
+    transaction_status: TransactionStatus = TransactionStatus.PENDING,
 ) -> dict:
     """Create inter-bank transfer (simplified implementation)"""
     from_account = await get_account_by_id(db, from_account_id)
@@ -346,9 +347,7 @@ async def create_interbank_transfer(
     )
 
     transaction = await create_transaction(
-        db,
-        transaction_data,
-        status=TransactionStatus.PENDING,  # Inter-bank transfers might be pending
+        db, transaction_data, transaction_status=transaction_status
     )
 
     await db.commit()

@@ -16,7 +16,7 @@ from app.services.account_service import (
     delete_account,
     get_account_by_id,
     get_account_by_number,
-    get_user_accounts,
+    get_all_accounts,
     update_account,
 )
 
@@ -24,12 +24,12 @@ router = APIRouter(tags=["accounts"])
 
 
 @router.get("/", response_model=List[AccountResponse])
-async def get_my_accounts(
+async def get_all_user_accounts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """Get all accounts for current user"""
-    accounts = await get_user_accounts(db, current_user.id)
+    accounts = await get_all_accounts(db, current_user.id)
     return accounts
 
 

@@ -3,7 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.db.models.account import AccountStatus, AccountType
-from app.schemas.bank import BankResponse
 
 
 class AccountBase(BaseModel):
@@ -18,6 +17,10 @@ class AccountCreate(AccountBase):
 class AccountUpdate(BaseModel):
     status: AccountStatus | None = None
     account_type: AccountType | None = None
+    balance: float | None = None
+    available_balance: float | None = None
+    currency: str | None = None
+    overdraft_limit: float | None = None
 
 
 class AccountResponse(BaseModel):
@@ -26,7 +29,8 @@ class AccountResponse(BaseModel):
     id: int
     user_id: int
     bank_id: int
-    bank_name: str
+    bank_name: str | None = None
+    bank_code: str | None = None
     account_number: str
     account_type: AccountType
     balance: float
@@ -35,7 +39,6 @@ class AccountResponse(BaseModel):
     status: AccountStatus
     created_at: datetime
     updated_at: datetime | None = None
-    bank = BankResponse
 
 
 class AccountBalance(BaseModel):

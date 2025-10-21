@@ -43,85 +43,75 @@ async def create_account(
             account_number=account_number,
             balance=0.0,
             available_balance=0.0,
-            status=AccountStatus.ACTIVE
+            status=AccountStatus.ACTIVE,
         )
 
         db.add(account)
         await db.commit()
         await db.refresh(account)
 
-        # Reload the account with bank relationship
+        # IMPORTANT: Use the same session to reload with relationships
         result = await db.execute(
             select(Account)
             .options(selectinload(Account.bank))
-            .filter(Account.id == account.id)
+            .where(Account.id == account.id)
         )
         account_with_bank = result.scalar_one()
         return account_with_bank
 
 
-async def get_account_by_id(db: AsyncSession, account_id: int) -> Account:
+async def get_all_accounts(db: AsyncSession, user_id: int) -> list[Account]:
+    """Get all accounts for a specific user"""
+    with logfire.span("get_all_accounts", user_id=user_id):
+        result = await db.execute(
+            select(Account)
+            .options(selectinload(Account.bank))
+            .where(Account.user_id == user_id)
+            .order_by(Account.created_at.desc())
+        )
+
+        return result.scalars().all()
+
+
+async def get_account_by_id(db: AsyncSession, account_id: int) -> Account | None:
     """Get account by ID with bank relationship"""
     with logfire.span("get_account_by_id", account_id=account_id):
         result = await db.execute(
             select(Account)
             .options(selectinload(Account.bank))
-            .filter(Account.id == account_id)
+            .where(Account.id == account_id)
         )
-        account = result.scalar_one_or_none()
-        return account
+        return result.scalar_one_or_none()
 
 
-async def get_account_by_number(db: AsyncSession, account_number: str) -> Account:
+async def get_account_by_number(
+    db: AsyncSession, account_number: str
+) -> Account | None:
     with logfire.span("get_account_by_number", account_number=account_number):
         result = await db.execute(
             select(Account)
             .options(selectinload(Account.bank))
-            .filter(Account.account_number == account_number)
+            .where(Account.account_number == account_number)
         )
-        
-        account = result.scalar_one_or_none()
-        return account
+        return result.scalar_one_or_none()
 
 
-async def get_accounts_by_bank(db: AsyncSession, bank_id: int) -> list[Account]:
-    """Get all accounts for a specific bank"""
-    with logfire.span("get_accounts_by_bank", bank_id=bank_id):
-        result = await db.execute(
-            select(Account)
-            .options(selectinload(Account.bank))
-            .filter(Account.bank_id == bank_id)
-            .order_by(Account.created_at.desc())
-        )
-        
-        accounts = result.scalars().all()
-        return accounts
-
-
-async def get_user_accounts(db: AsyncSession, user_id: int) -> list[Account]:
-    """Get all accounts for user with bank relationships"""
-    with logfire.span("get_user_accounts", user_id=user_id):
-        result = await db.execute(
-            select(Account)
-            .options(selectinload(Account.bank))
-            .filter(Account.user_id == user_id)
-            .order_by(Account.created_at.desc())
-        )
-        
-        accounts = result.scalars().all()
-        return accounts
-
-
-async def update_account_balance_internal(
+async def update_account_balance(
     db: AsyncSession, account_id: int, amount: float
 ) -> Account:
     """Update account balance (for internal use in transactions)"""
     with logfire.span("update_account_balance", account_id=account_id, amount=amount):
-        account = await get_account_by_id(db, account_id)
+        # Get account WITH bank relationship loaded
+        result = await db.execute(
+            select(Account)
+            .options(selectinload(Account.bank))
+            .where(Account.id == account_id)
+        )
+        account = result.scalar_one_or_none()
+
         if not account:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Account not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
             )
 
         # Update balance
@@ -129,15 +119,8 @@ async def update_account_balance_internal(
         account.available_balance += amount
 
         await db.commit()
-
-        # Reload with bank relationship
-        result = await db.execute(
-            select(Account)
-            .options(selectinload(Account.bank))
-            .filter(Account.id == account_id)
-        )
-        updated_account = result.scalar_one()
-        return updated_account
+        await db.refresh(account)
+        return account
 
 
 async def update_account(
@@ -149,7 +132,14 @@ async def update_account(
         account_id=account_id,
         update_data=account_data.model_dump(),
     ):
-        account = await get_account_by_id(db, account_id)
+        # Get account WITH bank relationship loaded
+        result = await db.execute(
+            select(Account)
+            .options(selectinload(Account.bank))
+            .where(Account.id == account_id)
+        )
+        account = result.scalar_one_or_none()
+
         if not account:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
@@ -163,23 +153,14 @@ async def update_account(
             )
 
         # Update fields (exclude balance fields from user updates)
-        update_data = account_data.model_dump(
-            exclude_unset=True, exclude={"balance", "available_balance"}
-        )
+        update_data = account_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            if hasattr(account, field):
+            if hasattr(account, field) and value is not None:
                 setattr(account, field, value)
 
         await db.commit()
-
-        # Reload with bank relationship
-        result = await db.execute(
-            select(Account)
-            .options(selectinload(Account.bank))
-            .filter(Account.id == account_id)
-        )
-        updated_account = result.scalar_one()
-        return updated_account
+        await db.refresh(account)
+        return account
 
 
 async def delete_account(
