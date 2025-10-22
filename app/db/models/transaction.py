@@ -40,6 +40,7 @@ class Transaction(BaseModel):
     )
     description = Column(Text)
     reference = Column(String(100), unique=True, index=True)
+    transfer_id = Column(String(100), index=True)
     merchant = Column(String(255), nullable=True)
     merchant_category = Column(String(100))  # MCC code category
     location = Column(String(255))

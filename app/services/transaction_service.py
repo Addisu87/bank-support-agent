@@ -12,7 +12,7 @@ from app.schemas.transaction import (
     TransactionCreate,
     TransactionQuery,
     TransferRequest,
-    WithdrawRequest,
+    WithdrawalRequest,
 )
 from app.services.account_service import (
     get_account_by_id,
@@ -49,13 +49,19 @@ async def create_transaction(
         account = await db.get(Account, transaction_data.account_id)
         if not account:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Account not found"
             )
+        
+        # Create a copy of the data to avoid modifying the original
+        transaction_dict = transaction_data.model_dump()
+        
+        # Ensure we have a reference 
+        if not transaction_dict.get('reference'): 
+            transaction_dict['reference'] = await generate_transaction_reference()
 
         transaction = Transaction(
-            **transaction_data.model_dump(),
-            reference=transaction_data.reference
-            or await generate_transaction_reference(),
+            **transaction_dict,
             status=transaction_status,
         )
 
@@ -182,140 +188,145 @@ async def deposit_funds(
     db: AsyncSession, deposit_data: DepositRequest, user_id: int
 ) -> Transaction:
     """Deposit funds into account"""
-    account = await get_account_by_number(db, deposit_data.account_number)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+    with logfire.span("deposit_funds", deposit_data=deposit_data, user_id=user_id):
+        account = await get_account_by_number(db, deposit_data.account_number)
+        if not account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+            )
+
+        # Check if user owns the account
+        if user_id and account.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to deposit to this account",
+            )
+
+        # Update account balance
+        account.balance += deposit_data.amount
+        account.available_balance += deposit_data.amount
+
+        # Create transaction record 
+        transaction_data = TransactionCreate(
+            account_id=account.id,
+            amount=deposit_data.amount,
+            transaction_type=TransactionType.DEPOSIT,
+            description=deposit_data.description,
         )
 
-    # Check if user owns the account (if user_id is provided)
-    if user_id and account.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to deposit to this account",
-        )
-
-    # Update account balance
-    account.balance += deposit_data.amount
-    account.available_balance += deposit_data.amount
-
-    # Create transaction record
-    transaction_data = TransactionCreate(
-        account_id=account.id,
-        amount=deposit_data.amount,
-        transaction_type=TransactionType.DEPOSIT,
-        description=deposit_data.description,
-    )
-
-    transaction = await create_transaction(db, transaction_data)
-    await db.commit()
-    return transaction
-
+        transaction = await create_transaction(db, transaction_data)
+        await db.commit()
+        return transaction 
 
 async def withdraw_funds(
-    db: AsyncSession, withdraw_data: WithdrawRequest, user_id: int
+    db: AsyncSession, withdrawal_data: WithdrawalRequest, user_id: int
 ) -> Transaction:
     """Withdraw funds from account"""
-    account = await get_account_by_number(db, withdraw_data.account_number)
-    if not account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+    with logfire.span("withdraw_funds", withdrawal_data=withdrawal_data, user_id=user_id): 
+        account = await get_account_by_number(db, withdrawal_data.account_number)
+        if not account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+            )
+
+        if user_id and account.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to withdraw from this account",
+            )
+
+        if account.available_balance < withdrawal_data.amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
+            )
+
+        # Update account balance
+        account.balance -= withdrawal_data.amount
+        account.available_balance -= withdrawal_data.amount
+
+        # Create transaction record
+        transaction_data = TransactionCreate(
+            account_id=account.id,
+            amount=-withdrawal_data.amount,
+            transaction_type=TransactionType.WITHDRAWAL,
+            description=withdrawal_data.description,
         )
 
-    # Check if user owns the account (if user_id is provided)
-    if user_id and account.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to withdraw from this account",
-        )
-
-    # Check sufficient funds
-    if account.available_balance < withdraw_data.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
-        )
-
-    # Update account balance
-    account.balance -= withdraw_data.amount
-    account.available_balance -= withdraw_data.amount
-
-    # Create transaction record
-    transaction_data = TransactionCreate(
-        account_id=account.id,
-        amount=-withdraw_data.amount,  # Negative amount for withdrawal
-        transaction_type=TransactionType.WITHDRAWAL,
-        description=withdraw_data.description,
-    )
-
-    transaction = await create_transaction(db, transaction_data)
-    await db.commit()
-    return transaction
+        transaction = await create_transaction(db, transaction_data)
+        await db.commit()
+        return transaction
 
 
 async def transfer_funds(
     db: AsyncSession, transfer_data: TransferRequest, user_id: int
 ) -> dict:
     """Transfer funds between accounts"""
-    from_account = await get_account_by_number(db, transfer_data.from_account_number)
-    to_account = await get_account_by_number(db, transfer_data.to_account_number)
+    with logfire.span("transfer_funds", transfer_data=transfer_data, user_id=user_id):
+        from_account = await get_account_by_number(db, transfer_data.from_account_number)
+        to_account = await get_account_by_number(db, transfer_data.to_account_number)
 
-    if not from_account or not to_account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="One or both accounts not found",
+        if not from_account or not to_account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or both accounts not found",
+            )
+
+        # Check if user owns the from_account (if user_id is provided)
+        if user_id and from_account.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to transfer from this account",
+            )
+
+        if from_account.balance < transfer_data.amount:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
+            )
+
+        # Update balances
+        await update_account_balance(db, from_account.id, -transfer_data.amount)
+        await update_account_balance(db, to_account.id, transfer_data.amount)
+
+        # Generate a transfer ID to link the two transactions
+        transfer_id = await generate_transaction_reference()
+
+        # Outgoing transaction
+        outgoing_tx_data = TransactionCreate(
+            account_id=from_account.id,
+            amount=-transfer_data.amount,
+            transaction_type=TransactionType.TRANSFER,
+            description=f"Transfer to {to_account.account_number} - {transfer_data.description}",
+            reference=await generate_transaction_reference(),
         )
 
-    # Check if user owns the from_account (if user_id is provided)
-    if user_id and from_account.user_id != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to transfer from this account",
+        # Incoming transaction
+        incoming_tx_data = TransactionCreate(
+            account_id=to_account.id,
+            amount=transfer_data.amount,
+            transaction_type=TransactionType.TRANSFER,
+            description=f"Transfer from {from_account.account_number} - {transfer_data.description}",
+            reference=await generate_transaction_reference(),
         )
 
-    if from_account.balance < transfer_data.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds"
-        )
+        # Create transactions
+        outgoing_tx = await create_transaction(db, outgoing_tx_data)
+        incoming_tx = await create_transaction(db, incoming_tx_data)
+        
+        # Update both transactions with the transfer_id
+        outgoing_tx.transfer_id = transfer_id
+        incoming_tx.transfer_id = transfer_id
 
-    # Update balances
-    await update_account_balance(db, from_account.id, -transfer_data.amount)
-    await update_account_balance(db, to_account.id, transfer_data.amount)
 
-    # Create transaction records for both accounts
-    reference = await generate_transaction_reference()
+        await db.commit()
 
-    # Outgoing transaction
-    outgoing_tx_data = TransactionCreate(
-        account_id=from_account.id,
-        amount=-transfer_data.amount,
-        transaction_type=TransactionType.TRANSFER,
-        description=f"Transfer to {to_account.account_number} - {transfer_data.description}",
-        reference=reference,
-    )
-
-    # Incoming transaction
-    incoming_tx_data = TransactionCreate(
-        account_id=to_account.id,
-        amount=transfer_data.amount,
-        transaction_type=TransactionType.TRANSFER,
-        description=f"Transfer from {from_account.account_number} - {transfer_data.description}",
-        reference=reference,
-    )
-
-    # Create transactions without storing the returned objects
-    await create_transaction(db, outgoing_tx_data)
-    await create_transaction(db, incoming_tx_data)
-
-    await db.commit()
-
-    return {
-        "message": "Transfer completed successfully",
-        "reference": reference,
-        "from_account": from_account.account_number,
-        "to_account": to_account.account_number,
-        "amount": transfer_data.amount,
-        "new_balance": from_account.balance,
-    }
+        return {
+            "message": "Transfer completed successfully",
+            "transfer_id": transfer_id,
+            "from_account": from_account.account_number,
+            "to_account": to_account.account_number,
+            "amount": transfer_data.amount,
+            "new_balance": from_account.balance,
+        }
 
 
 async def create_interbank_transfer(
@@ -327,37 +338,38 @@ async def create_interbank_transfer(
     transaction_status: TransactionStatus = TransactionStatus.PENDING,
 ) -> dict:
     """Create inter-bank transfer (simplified implementation)"""
-    from_account = await get_account_by_id(db, from_account_id)
-    if not from_account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
+    with logfire.span("create_interbank_transfer", from_account_id=from_account_id, to_account_number=to_account_number, amount=amount, description=description, transaction_status=transaction_status):
+        from_account = await get_account_by_id(db, from_account_id)
+        if not from_account:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Source account not found"
+            )
+
+        # Update source account balance
+        from_account.balance -= amount
+        from_account.available_balance -= amount
+
+        # Create transaction record
+        transaction_data = TransactionCreate(
+            account_id=from_account.id,
+            amount=-amount,
+            transaction_type=TransactionType.TRANSFER,
+            description=f"Inter-bank transfer to {to_account_number}"
+            + (f" - {description}" if description else ""),
         )
 
-    # Update source account balance
-    from_account.balance -= amount
-    from_account.available_balance -= amount
+        transaction = await create_transaction(
+            db, transaction_data, transaction_status=transaction_status
+        )
 
-    # Create transaction record
-    transaction_data = TransactionCreate(
-        account_id=from_account.id,
-        amount=-amount,
-        transaction_type=TransactionType.TRANSFER,
-        description=f"Inter-bank transfer to {to_account_number}"
-        + (f" - {description}" if description else ""),
-    )
+        await db.commit()
 
-    transaction = await create_transaction(
-        db, transaction_data, transaction_status=transaction_status
-    )
-
-    await db.commit()
-
-    return {
-        "message": "Inter-bank transfer initiated",
-        "reference": transaction.reference,
-        "amount": amount,
-        "from_account": from_account.account_number,
-        "to_account": to_account_number,
-        "fee": 0.0,
-        "status": "pending",
-    }
+        return {
+            "message": "Inter-bank transfer initiated",
+            "reference": transaction.reference,
+            "amount": amount,
+            "from_account": from_account.account_number,
+            "to_account": to_account_number,
+            "fee": 0.0,
+            "status": "pending",
+        }

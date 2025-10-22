@@ -1,76 +1,356 @@
+# app/services/llm_agent.py
 import logfire
-from pydantic_ai import Agent
+from dataclasses import dataclass
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Optional, Annotated
+from pydantic import BaseModel, ConfigDict
 
 from app.core.config import settings
+from app.schemas.account import AccountResponse
+from app.schemas.transaction import (
+    TransactionResponse,
+    TransferRequest,
+    WithdrawalRequest,
+    DepositRequest,
+)
+from app.schemas.user import UserResponse
+from app.schemas.card import CardResponse
+from app.schemas.bank import BankResponse
+from app.services.account_service import (
+    get_all_accounts,
+    get_account_by_number,
+    get_account_by_id,
+)
+from app.services.transaction_service import (
+    get_recent_transactions,
+    transfer_funds,
+    deposit_funds,
+    withdraw_funds,
+    get_transaction_by_reference,
+)
+from app.services.card_service import get_user_cards
+from app.services.user_service import get_user_by_id
+from app.services.bank_service import get_all_active_banks
+
 
 # ------------------------
-# 🔧 Setup & Configuration
-# ------------------------
-logfire.configure(token=settings.LOGFIRE_TOKEN)
-logfire.instrument_pydantic_ai()
-
-# ------------------------
-# 🏦 Simple Banking Agent
+# 🏦 Pydantic Models for Agent State
 # ------------------------
 
+@dataclass
+class AgentDependencies(BaseModel):
+    """Dependencies injected into the agent context"""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-def create_banking_agent() -> Agent:
-    """Create a simple banking conversation agent"""
+    db: AsyncSession
+    user_id: int
 
-    model = OpenAIChatModel(
-        model_name=settings.PYDANTIC_AI_MODEL,
-        provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY),
-    )
-
-    agent = Agent(
-        model,
-        system_prompt="""
-        You are a helpful bank support assistant. Your role is to have conversational interactions 
-        with users and provide helpful information about banking.
-
-        You can help with:
-        - Explaining banking concepts and features
-        - Guiding users on how to use the banking app
-        - Providing general financial tips
-        - Answering questions about account management
-        - Security best practices
-
-        Important guidelines:
-        - Be friendly, professional, and helpful
-        - Guide users to use the actual banking app for transactions
-        - Never ask for sensitive information (passwords, PINs, card numbers)
-        - If you don't know something, admit it and suggest contacting support
-        - Keep responses clear and conversational
-
-        Remember: You're here to chat and guide, not to perform banking operations.
-        """,
-        instrument=True,
-    )
-
-    return agent
-
-
-# Global agent instance
-banking_agent = create_banking_agent()
 
 # ------------------------
-# 🏦 Simple Agent Functions
+# 🏦 Banking Agent Definition
+# ------------------------
+
+# Create the model once
+_banking_model = OpenAIChatModel(
+    model_name=settings.PYDANTIC_AI_MODEL,
+    provider=DeepSeekProvider(api_key=settings.DEEPSEEK_API_KEY),
+)
+
+# Define the banking agent with all tools
+banking_agent = Agent(
+    model=_banking_model,
+    system_prompt="""
+    You are a helpful bank support assistant with REAL-TIME access to customer data. 
+    You can access actual account information, transactions, and user profiles.
+
+    CAPABILITIES:
+    - View all user accounts and balances
+    - Check specific account details
+    - View recent transaction history
+    - View user's payment cards (masked for security)
+    - Access user profile information
+    - Transfer funds between accounts
+    - Deposit and withdraw funds
+    - Look up transactions by reference
+    - Get bank information
+    - Get transactions for specific accounts
+
+    SECURITY & GUIDELINES:
+    - Only access data for the authenticated user
+    - Never reveal full card numbers or sensitive details
+    - Confirm important actions like transfers with the user
+    - Be transparent about what data you're accessing
+    - Use friendly, professional language
+    - Provide clear, accurate financial information
+
+    TOOL USAGE:
+    - Use the appropriate tools based on user requests
+    - For transfers, confirm details before executing
+    - Provide helpful, personalized responses based on actual data
+    """,
+    deps_type=AgentDependencies,
+)
+
+# ------------------------
+# 🛠️ Banking Tools with Proper Pydantic AI Patterns
 # ------------------------
 
 
-async def chat_with_agent(user_query: str) -> str:
-    """Simple function to chat with the banking agent"""
-    with logfire.span("agent_chat", user_query=user_query):
+@banking_agent.tool
+async def get_user_accounts(
+    ctx: RunContext[AgentDependencies],
+) -> List[AccountResponse]:
+    """Get all accounts for the current user with balances and details."""
+    try:
+        accounts = await get_all_accounts(ctx.deps.db, ctx.deps.user_id)
+        return [AccountResponse.model_validate(account) for account in accounts]
+    except Exception as e:
+        logfire.error("Error getting user accounts", error=str(e))
+        return []
+
+
+@banking_agent.tool
+async def get_account_balance_details(
+    ctx: RunContext[AgentDependencies], account_number: str
+) -> Optional[AccountResponse]:
+    """Get specific account details and balance by account number."""
+    try:
+        account = await get_account_by_number(ctx.deps.db, account_number)
+        if account and account.user_id == ctx.deps.user_id:
+            return AccountResponse.model_validate(account)
+        return None
+    except Exception as e:
+        logfire.error("Error getting account balance", error=str(e))
+        return None
+
+
+@banking_agent.tool
+async def get_recent_user_transactions(
+    ctx: RunContext[AgentDependencies],
+    limit: Annotated[int, "Number of transactions to return"] = 10,
+) -> List[TransactionResponse]:
+    """Get recent transactions for the user across all accounts."""
+    try:
+        if limit > 50:
+            limit = 50
+        transactions = await get_recent_transactions(
+            ctx.deps.db, ctx.deps.user_id, limit=limit
+        )
+        return [TransactionResponse.model_validate(tx) for tx in transactions]
+    except Exception as e:
+        logfire.error("Error getting transactions", error=str(e))
+        return []
+
+
+@banking_agent.tool
+async def get_user_payment_cards(
+    ctx: RunContext[AgentDependencies],
+) -> List[CardResponse]:
+    """Get user's payment cards with masked numbers for security."""
+    try:
+        cards = await get_user_cards(ctx.deps.db, ctx.deps.user_id)
+        return [CardResponse.model_validate(card) for card in cards]
+    except Exception as e:
+        logfire.error("Error getting user cards", error=str(e))
+        return []
+
+
+@banking_agent.tool
+async def get_user_profile(
+    ctx: RunContext[AgentDependencies],
+) -> Optional[UserResponse]:
+    """Get user profile information including name and contact details."""
+    try:
+        user = await get_user_by_id(ctx.deps.db, ctx.deps.user_id)
+        if user:
+            return UserResponse.model_validate(user)
+        return None
+    except Exception as e:
+        logfire.error("Error getting user profile", error=str(e))
+        return None
+
+
+@banking_agent.tool
+async def transfer_funds_between_accounts(
+    ctx: RunContext[AgentDependencies], request: TransferRequest
+) -> dict:
+    """Transfer funds between two accounts."""
+    try:
+        transfer_data = TransferRequest.model_validate(
+            {
+                "from_account_number": request.from_account_number,
+                "to_account_number": request.to_account_number,
+                "amount": request.amount,
+                "description": request.description,
+                
+            }
+        )
+
+        result = await transfer_funds(ctx.deps.db, transfer_data, ctx.deps.user_id)
+        return {
+            "success": True,
+            "message": "Transfer completed successfully",
+            "reference": getattr(result, "reference", "N/A"),
+            "amount": request.amount,
+            "from_account": request.from_account_number,
+            "to_account": request.to_account_number
+        }
+    except Exception as e:
+        logfire.error("Error creating transfer", error=str(e))
+        return {"error": str(e), "success": False}
+
+
+@banking_agent.tool
+async def deposit_funds_into_accounts(
+    ctx: RunContext[AgentDependencies], request: DepositRequest
+) -> dict:
+    """Deposit funds into an account."""
+    try:
+        deposit_data = DepositRequest.model_validate(
+            {
+                "account_number": request.account_number,
+                "amount": request.amount,
+                "description": request.description,
+            }
+        )
+
+        transaction = await deposit_funds(ctx.deps.db, deposit_data, ctx.deps.user_id)
+        return {
+            "success": True,
+            "message": "Deposit successful",
+            "reference": transaction.reference,
+            "amount": request.amount,
+            "account": request.account_number,
+        }
+    except Exception as e:
+        logfire.error("Error depositing funds", error=str(e))
+        return {"error": str(e), "success": False}
+
+
+@banking_agent.tool
+async def withdraw_funds_an_account(
+    ctx: RunContext[AgentDependencies], request: WithdrawalRequest
+) -> dict:
+    """Withdraw funds from an account."""
+    try:
+        withdraw_data = WithdrawalRequest.model_validate(
+            {
+                "account_number": request.account_number,
+                "amount": request.amount,
+                "description": request.description,
+            }
+        )
+
+        transaction = await withdraw_funds(ctx.deps.db, withdraw_data, ctx.deps.user_id)
+        return {
+            "success": True,
+            "message": "Withdrawal successful",
+            "reference": transaction.reference,
+            "amount": request.amount,
+            "account": request.account_number,
+        }
+    except Exception as e:
+        logfire.error("Error withdrawing funds", error=str(e))
+        return {"error": str(e), "success": False}
+
+
+@banking_agent.tool
+async def get_account_detail_by_id(
+    ctx: RunContext[AgentDependencies], account_id: int
+) -> Optional[AccountResponse]:
+    """Get account details by account ID."""
+    try:
+        account = await get_account_by_id(ctx.deps.db, account_id)
+        if account and account.user_id == ctx.deps.user_id:
+            return AccountResponse.model_validate(account)
+        return None
+    except Exception as e:
+        logfire.error("Error getting account by ID", error=str(e))
+        return None
+
+
+@banking_agent.tool
+async def get_banks(ctx: RunContext[AgentDependencies]) -> List[BankResponse]:
+    """Get list of all active banks in the system."""
+    try:
+        banks = await get_all_active_banks(ctx.deps.db)
+        return [BankResponse.model_validate(bank) for bank in banks]
+    except Exception as e:
+        logfire.error("Error getting banks", error=str(e))
+        return []
+
+
+@banking_agent.tool
+async def get_transaction_details_by_reference(
+    ctx: RunContext[AgentDependencies], reference: str
+) -> Optional[TransactionResponse]:
+    """Get transaction details by reference number."""
+    try:
+        transaction = await get_transaction_by_reference(ctx.deps.db, reference)
+        if transaction:
+            account = await get_account_by_id(ctx.deps.db, transaction.account_id)
+            if account and account.user_id == ctx.deps.user_id:
+                return TransactionResponse.model_validate(transaction)
+        return None
+    except Exception as e:
+        logfire.error("Error getting transaction by reference", error=str(e))
+        return None
+
+
+@banking_agent.tool
+async def get_account_transactions(
+    ctx: RunContext[AgentDependencies],
+    account_number: str,
+    limit: Annotated[int, "Number of transactions to return"] = 10,
+) -> List[TransactionResponse]:
+    """Get recent transactions for a specific account."""
+    try:
+        if limit > 50:
+            limit = 50
+
+        account = await get_account_by_number(ctx.deps.db, account_number)
+        if not account or account.user_id != ctx.deps.user_id:
+            return []
+
+        transactions = await get_account_transactions(
+            ctx.deps.db, account.id, limit=limit
+        )
+        return [TransactionResponse.model_validate(tx) for tx in transactions]
+    except Exception as e:
+        logfire.error("Error getting account transactions", error=str(e))
+        return []
+
+
+# ------------------------
+# 🚀 Agent Functions
+# ------------------------
+
+
+async def chat_with_agent_enhanced(
+    user_query: str, db: AsyncSession, user_id: int
+) -> str:
+    """Enhanced function to chat with banking agent using real data"""
+    with logfire.span("enhanced_agent_chat", user_query=user_query, user_id=user_id):
         try:
-            logfire.info("Calling banking agent...")
-            result = await banking_agent.run(user_query)
-            response = str(result)
+            logfire.info("Calling enhanced banking agent...")
 
-            logfire.info("Agent response successful")
-            return response
+            # Create dependencies
+            deps = AgentDependencies(db=db, user_id=user_id)
+
+            # Run the agent with dependencies
+            result = await banking_agent.run(user_query, deps=deps)
+
+            logfire.info(
+                "Enhanced agent response successful",
+                tool_calls=len(result.tool_calls()),
+            )
+            return result.data
 
         except Exception as e:
-            logfire.error("Agent chat error", error=str(e), error_type=type(e).__name__)
-            return "I apologize, but I'm having trouble connecting to the AI service right now. Please try again later or contact our support team."
+            logfire.error(
+                "Enhanced agent chat error", error=str(e), error_type=type(e).__name__
+            )
+            return "I apologize, but I'm having trouble accessing your account information right now. Please try again later or contact our support team for immediate assistance."

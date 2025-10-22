@@ -10,7 +10,7 @@ from app.schemas.transaction import (
     TransactionQuery,
     TransactionResponse,
     TransferRequest,
-    WithdrawRequest,
+    WithdrawalRequest,
 )
 from app.services.account_service import get_account_by_id
 from app.services.transaction_service import (
@@ -143,7 +143,7 @@ async def deposit_to_account(
 
 @router.post("/withdraw", response_model=TransactionResponse)
 async def withdraw_from_account(
-    withdraw_data: WithdrawRequest,
+    withdraw_data: WithdrawalRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
