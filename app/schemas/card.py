@@ -26,8 +26,10 @@ class CardResponse(CardBase):
     account_id: int
     bank_id: int
     card_number: str
+    cvv: str
     status: CardStatus
     expiry_date: datetime
+    
     created_at: datetime
     updated_at: datetime | None
 
@@ -35,6 +37,7 @@ class CardResponse(CardBase):
 class CardUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    card_type: CardType
     daily_limit: float | None = None
     contactless_enabled: bool | None = None
     international_usage: bool | None = None

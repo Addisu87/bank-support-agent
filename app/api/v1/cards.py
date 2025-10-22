@@ -21,23 +21,6 @@ from app.services.card_service import (
 
 router = APIRouter(tags=["cards"])
 
-
-@router.get("/", response_model=List[CardResponse])
-async def get_my_cards(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Get all cards for current user"""
-    try:
-        cards = await get_user_cards(db, current_user.id)
-        return cards
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching cards: {str(e)}",
-        )
-
-
 @router.post("/{account_id}", response_model=CardResponse)
 async def create_new_card(
     account_id: int,
@@ -56,6 +39,22 @@ async def create_new_card(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating card: {str(e)}",
         )
+
+@router.get("/", response_model=List[CardResponse])
+async def get_my_cards(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get all cards for current user"""
+    try:
+        cards = await get_user_cards(db, current_user.id)
+        return cards
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching cards: {str(e)}",
+        )
+
 
 
 @router.get("/{card_id}", response_model=CardResponse)
