@@ -49,16 +49,15 @@ async def create_transaction(
         account = await db.get(Account, transaction_data.account_id)
         if not account:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Account not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
             )
-        
+
         # Create a copy of the data to avoid modifying the original
         transaction_dict = transaction_data.model_dump()
-        
-        # Ensure we have a reference 
-        if not transaction_dict.get('reference'): 
-            transaction_dict['reference'] = await generate_transaction_reference()
+
+        # Ensure we have a reference
+        if not transaction_dict.get("reference"):
+            transaction_dict["reference"] = await generate_transaction_reference()
 
         transaction = Transaction(
             **transaction_dict,
@@ -206,7 +205,7 @@ async def deposit_funds(
         account.balance += deposit_data.amount
         account.available_balance += deposit_data.amount
 
-        # Create transaction record 
+        # Create transaction record
         transaction_data = TransactionCreate(
             account_id=account.id,
             amount=deposit_data.amount,
@@ -216,13 +215,16 @@ async def deposit_funds(
 
         transaction = await create_transaction(db, transaction_data)
         await db.commit()
-        return transaction 
+        return transaction
+
 
 async def withdraw_funds(
     db: AsyncSession, withdrawal_data: WithdrawalRequest, user_id: int
 ) -> Transaction:
     """Withdraw funds from account"""
-    with logfire.span("withdraw_funds", withdrawal_data=withdrawal_data, user_id=user_id): 
+    with logfire.span(
+        "withdraw_funds", withdrawal_data=withdrawal_data, user_id=user_id
+    ):
         account = await get_account_by_number(db, withdrawal_data.account_number)
         if not account:
             raise HTTPException(
@@ -262,7 +264,9 @@ async def transfer_funds(
 ) -> dict:
     """Transfer funds between accounts"""
     with logfire.span("transfer_funds", transfer_data=transfer_data, user_id=user_id):
-        from_account = await get_account_by_number(db, transfer_data.from_account_number)
+        from_account = await get_account_by_number(
+            db, transfer_data.from_account_number
+        )
         to_account = await get_account_by_number(db, transfer_data.to_account_number)
 
         if not from_account or not to_account:
@@ -311,11 +315,10 @@ async def transfer_funds(
         # Create transactions
         outgoing_tx = await create_transaction(db, outgoing_tx_data)
         incoming_tx = await create_transaction(db, incoming_tx_data)
-        
+
         # Update both transactions with the transfer_id
         outgoing_tx.transfer_id = transfer_id
         incoming_tx.transfer_id = transfer_id
-
 
         await db.commit()
 
@@ -338,7 +341,14 @@ async def create_interbank_transfer(
     transaction_status: TransactionStatus = TransactionStatus.PENDING,
 ) -> dict:
     """Create inter-bank transfer (simplified implementation)"""
-    with logfire.span("create_interbank_transfer", from_account_id=from_account_id, to_account_number=to_account_number, amount=amount, description=description, transaction_status=transaction_status):
+    with logfire.span(
+        "create_interbank_transfer",
+        from_account_id=from_account_id,
+        to_account_number=to_account_number,
+        amount=amount,
+        description=description,
+        transaction_status=transaction_status,
+    ):
         from_account = await get_account_by_id(db, from_account_id)
         if not from_account:
             raise HTTPException(

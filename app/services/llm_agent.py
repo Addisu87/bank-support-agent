@@ -1,48 +1,50 @@
 # app/services/llm_agent.py
-import logfire
 from dataclasses import dataclass
+from typing import Annotated, List, Optional
+
+import logfire
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional, Annotated
-from pydantic import BaseModel, ConfigDict
 
 from app.core.config import settings
 from app.schemas.account import AccountResponse
+from app.schemas.bank import BankResponse
+from app.schemas.card import CardResponse
 from app.schemas.transaction import (
+    DepositRequest,
     TransactionResponse,
     TransferRequest,
     WithdrawalRequest,
-    DepositRequest,
 )
 from app.schemas.user import UserResponse
-from app.schemas.card import CardResponse
-from app.schemas.bank import BankResponse
 from app.services.account_service import (
-    get_all_accounts,
-    get_account_by_number,
     get_account_by_id,
+    get_account_by_number,
+    get_all_accounts,
 )
-from app.services.transaction_service import (
-    get_recent_transactions,
-    transfer_funds,
-    deposit_funds,
-    withdraw_funds,
-    get_transaction_by_reference,
-)
-from app.services.card_service import get_user_cards
-from app.services.user_service import get_user_by_id
 from app.services.bank_service import get_all_active_banks
-
+from app.services.card_service import get_user_cards
+from app.services.transaction_service import (
+    deposit_funds,
+    get_recent_transactions,
+    get_transaction_by_reference,
+    transfer_funds,
+    withdraw_funds,
+)
+from app.services.user_service import get_user_by_id
 
 # ------------------------
 # 🏦 Pydantic Models for Agent State
 # ------------------------
 
+
 @dataclass
 class AgentDependencies(BaseModel):
     """Dependencies injected into the agent context"""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     db: AsyncSession
@@ -185,7 +187,6 @@ async def transfer_funds_between_accounts(
                 "to_account_number": request.to_account_number,
                 "amount": request.amount,
                 "description": request.description,
-                
             }
         )
 
@@ -196,7 +197,7 @@ async def transfer_funds_between_accounts(
             "reference": getattr(result, "reference", "N/A"),
             "amount": request.amount,
             "from_account": request.from_account_number,
-            "to_account": request.to_account_number
+            "to_account": request.to_account_number,
         }
     except Exception as e:
         logfire.error("Error creating transfer", error=str(e))

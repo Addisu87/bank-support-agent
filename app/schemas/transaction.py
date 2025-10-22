@@ -13,8 +13,9 @@ class TransactionBase(BaseModel):
 
 class TransactionCreate(TransactionBase):
     """Core transaction model"""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     account_id: int
     reference: str | None = None
     card_id: int | None = None
@@ -22,6 +23,7 @@ class TransactionCreate(TransactionBase):
 
 class TransactionResponse(TransactionBase):
     """Transaction information model for API responses"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -37,6 +39,7 @@ class TransactionResponse(TransactionBase):
 
 class TransactionQuery(BaseModel):
     """Request model for transaction queries"""
+
     model_config = ConfigDict(from_attributes=True)
 
     account_id: int | None = None
@@ -49,7 +52,7 @@ class TransactionQuery(BaseModel):
 
 class TransferRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-        
+
     from_account_number: str
     to_account_number: str
     amount: float
@@ -64,7 +67,7 @@ class TransferRequest(BaseModel):
 
 class DepositRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     account_number: str
     amount: float
     description: str = "Deposit"
@@ -78,7 +81,7 @@ class DepositRequest(BaseModel):
 
 class WithdrawalRequest(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-        
+
     account_number: str
     amount: float
     description: str = "Withdrawal"

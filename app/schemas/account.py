@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.db.models.account import AccountStatus, AccountType
-from typing import Any
 
 
 class AccountBase(BaseModel):
@@ -17,7 +17,7 @@ class AccountCreate(AccountBase):
 
 class AccountUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     status: AccountStatus | None = None
     account_type: AccountType | None = None
     balance: float | None = None
@@ -42,27 +42,28 @@ class AccountResponse(BaseModel):
     status: AccountStatus
     created_at: datetime
     updated_at: datetime | None = None
-    
+
     # Add method to populate bank information from the relationship
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def inject_bank_data(cls, data: Any) -> Any:
-        if hasattr(data, 'bank') and data.bank:
+        if hasattr(data, "bank") and data.bank:
             return {
                 **data.__dict__,
-                'bank_name': data.bank.name,
-                'bank_code': data.bank.code
+                "bank_name": data.bank.name,
+                "bank_code": data.bank.code,
             }
         return data
 
 
 class AccountBalance(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     account_number: str
     balance: float
     available_balance: float
     currency: str
+
 
 class AccountCreateResponse(BaseModel):
     message: str

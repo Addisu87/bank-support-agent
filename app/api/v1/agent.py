@@ -19,7 +19,7 @@ async def chat(
     try:
         response = await chat_with_agent_enhanced(request.message, db, current_user.id)
         return ChatResponse(response=response)
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=500,
             detail="Unable to process your request at this time. Please try again later.",

@@ -40,6 +40,13 @@ class CardUpdate(BaseModel):
     international_usage: bool | None = None
     status: CardStatus | None = None
 
+    @field_validator("daily_limit")
+    @classmethod
+    def validate_daily_limit(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("Daily limit must be positive")
+        return v
+
 
 class CardSecurityUpdate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
