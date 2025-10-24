@@ -1,197 +1,101 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import datetime
-import random
 
-from app.db.schema import User, Account, Transaction, Card
-from app.core.deps import get_current_active_user
-from app.db.session import get_session
-from app.models.account import CreateAccountRequest, AccountCreationResponse, AccountInfo
-from app.models.transaction import TransactionInfo
-from app.models.card import CardInfo, CardBlockResponse
+from app.core.deps import get_current_active_user, get_db
+from app.db.models.user import User
+from app.schemas.account import (
+    AccountBalance,
+    AccountCreate,
+    AccountResponse,
+    AccountUpdate,
+)
+from app.services.account_service import (
+    create_account,
+    delete_account,
+    get_account_by_id,
+    get_account_by_number,
+    get_all_accounts,
+    update_account,
+)
 
-router = APIRouter()
+router = APIRouter(tags=["accounts"])
 
 
-@router.post("/create-account", response_model=AccountCreationResponse, status_code=status.HTTP_201_CREATED)
-async def create_account(
-    request: CreateAccountRequest,
+@router.get("/", response_model=List[AccountResponse])
+async def get_all_user_accounts(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
 ):
-    """Create a new bank account for the current user."""
-    try:
-        account_number = getattr(request, "account_number", None) or f"ACCT{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}{random.randint(1000, 9999)}"
-        new_account = Account(
-            user_id=current_user.id,
-            bank_id=request.bank_id,
-            account_number=account_number,
-            balance=request.balance or 0.0,
-            currency=request.currency or "USD",
-            account_type=request.account_type or "checking"
-        )
-        db.add(new_account)
-        await db.commit()
-        await db.refresh(new_account)
-
-        return AccountCreationResponse(
-            status="success",
-            message="Account created successfully",
-            account_number=new_account.account_number,
-            account_type=new_account.account_type,
-            balance=new_account.balance,
-            currency=new_account.currency,
-            created_at=new_account.created_at
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating account: {str(e)}")
-
-
-@router.get("/", response_model=list[AccountInfo])
-async def get_accounts(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
-):
-    """Get all accounts for the current user."""
-    result = await db.execute(select(Account).filter_by(user_id=current_user.id))
-    accounts = result.scalars().all()
-    if not accounts:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No accounts found for this user")
+    """Get all accounts for current user"""
+    accounts = await get_all_accounts(db, current_user.id)
     return accounts
 
 
-@router.get("/{user_id}/accounts", response_model=list[AccountInfo])
-async def get_user_accounts(
-    user_id: int,
+@router.post("/", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_new_account(
+    account_data: AccountCreate,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
 ):
-    """Get accounts for a specific user (self only for now)."""
-    if user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this user's accounts")
-    
-    result = await db.execute(select(Account).filter_by(user_id=user_id))
-    accounts = result.scalars().all()
-    if not accounts:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No accounts found for this user")
-    return accounts
+    """Create a new account for current user"""
+    account = await create_account(db, current_user.id, account_data)
+    return account
 
 
-@router.get("/{account_number}/transactions", response_model=list[TransactionInfo])
-async def get_transactions_for_account(
-    account_number: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
-):
-    """Get all transactions for a specific account."""
-    # Direct query to find the account
-    result = await db.execute(select(Account).filter_by(user_id=current_user.id, account_number=account_number))
-    account = result.scalars().first()
-    
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-
-    # Direct query to fetch transactions
-    tx_result = await db.execute(select(Transaction).filter_by(account_id=account.id))
-    transactions = tx_result.scalars().all()
-    
-    if not transactions:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No transactions found for this account")
-    return transactions
-
-@router.post("/cards", response_model=CardInfo, status_code=status.HTTP_201_CREATED)
-async def create_card(
+@router.get("/{account_id}", response_model=AccountResponse)
+async def get_account(
     account_id: int,
-    card_number: str,
-    card_type: str = "debit",
-    expiry_date: str | None = None,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
 ):
-    """Create a new card for a specific account."""
-    # Optional: verify account exists
-    result = await db.execute(select(Account).filter_by(id=account_id))
-    account = result.scalars().first()
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
+    """Get specific account details"""
+    account = await get_account_by_id(db, account_id)
 
-    new_card = Card(
-        account_id=account_id,
-        card_number=card_number,
-        card_type=card_type,
-        expiry_date=expiry_date
-    )
-
-    db.add(new_card)
-    await db.commit()
-    await db.refresh(new_card)
-
-    return new_card 
-
-@router.get("/cards", response_model=list[CardInfo])
-async def get_cards(
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
-):
-    """Get all cards for the current user."""
-    result = await db.execute(select(Card).filter_by(user_id=current_user.id))
-    cards = result.scalars().all()
-    if not cards:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No cards found for this user")
-    return cards
-
-@router.get("/cards/{card_number}", response_model=CardInfo)
-async def get_card(
-    card_number: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
-):
-    """Get a single card by number."""
-    result = await db.execute(
-        select(Card).join(Account).filter(
-            Card.card_number == card_number,
-            Account.user_id == current_user.id
-        )
-    )
-    card = result.scalar_one_or_none()
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found")
-    return card
-
-
-@router.post("/cards/{card_number}/block", response_model=CardBlockResponse)
-async def block_card(
-    card_number: str,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_session)
-):
-    """Block a card."""
-    result = await db.execute(select(Card).filter_by(user_id=current_user.id, card_number=card_number))
-    card = result.scalars().first()
-    
-    if not card:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found or permission denied.")
-    
-    if card.status == "blocked":
-        return CardBlockResponse(
-            status="success",
-            message="Card is already blocked.",
-            card_number=card.card_number,
-            card_type=card.card_type,
-            card_status=card.status
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
         )
 
-    # Block the card
-    card.status = "blocked"
-    db.add(card)
-    await db.commit()
-    await db.refresh(card)
+    return account
 
-    return CardBlockResponse(
-        status="success",
-        message="Card blocked successfully.",
-        card_number=card.card_number,
-        card_type=card.card_type,
-        card_status=card.status
-    )
+
+@router.get("/{account_number}/balance", response_model=AccountBalance)
+async def get_account_balance(
+    account_number: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get account balance"""
+    account = await get_account_by_number(db, account_number)
+
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+
+    return AccountBalance.model_validate(account)
+
+
+@router.put("/{account_id}", response_model=AccountResponse)
+async def update_account_details(
+    account_id: int,
+    account_data: AccountUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Update account details"""
+    account = await update_account(db, account_id, account_data, current_user.id)
+    return account
+
+
+@router.delete("/{account_id}")
+async def delete_user_account(
+    account_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """ "Delete user account"""
+    await delete_account(db, account_id, current_user.id)
+    return None

@@ -1,0 +1,53 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: bank87
+          POSTGRES_DB: bankdb
+        ports: [5432:5432]
+
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - uses: astral-sh/setup-uv@v3
+    
+    - run: uv sync
+    
+    - run: uv run alembic upgrade head
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
+    
+    - run: uv run pytest
+      env:
+        DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
+        SECRET_KEY: test-secret-key
+        REDIS_URL: redis://localhost:6379
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    - run: echo "Deploy to production"

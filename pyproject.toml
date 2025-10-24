@@ -11,7 +11,7 @@ dependencies = [
     "bcrypt<=4.0.1",
     "celery",
     "fastapi[standard]",
-    "logfire>=4.3.6",
+    "logfire[sqlalchemy]>=4.3.6",
     "pillow",
     "pydantic[email,timezone]",
     "pydantic-ai-slim[mcp,openai]>=0.8.1",
@@ -27,9 +27,10 @@ dependencies = [
     "passlib>=1.7.4",
     "databases[asyncpg]>=0.9.0",
     "python-multipart>=0.0.20",
+    "redis>=5.0.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "httpx>=0.28.1",
     "pytest>=8.4.1",
@@ -41,6 +42,12 @@ dev = [
 # Same as Black.
 line-length = 88
 indent-width = 4
+
+[tool.ruff.lint]
+select = [ 
+    "F",    # pyflakes
+    "I",    # isort
+]
 
 # Exclude a variety of commonly ignored directories.
 exclude = [

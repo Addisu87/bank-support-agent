@@ -1,11 +1,16 @@
-def access_token_expire_minutes() -> int:
-    return 30
+# Cache Constants
+CACHE_EXPIRE_SECONDS = 300  # 5 minutes
 
+# Account Constants
+MIN_ACCOUNT_BALANCE = 0.0
+MAX_TRANSACTION_AMOUNT = 1000000.0
 
-def confirm_token_expire_minutes() -> int:
-    return 60 * 24
+# Transaction Constants
+TRANSACTION_STATUS_PENDING = "pending"
+TRANSACTION_STATUS_COMPLETED = "completed"
+TRANSACTION_STATUS_FAILED = "failed"
 
-
-def email_reset_token_expire_hours() -> int:
-    return 48
-
+# User Roles
+USER_ROLE_CUSTOMER = "customer"
+USER_ROLE_ADMIN = "admin"
+USER_ROLE_SUPPORT = "support"

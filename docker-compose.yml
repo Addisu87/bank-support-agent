@@ -1,25 +1,54 @@
+version: '3.8'
+
 services:
   web:
     build: .
     ports:
-      - "8000:80"
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:bank87@db:5432/bankdb
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
+      - DEBUG=false
     depends_on:
-      - postgres
+      - db
       - redis
-  postgres:
+    volumes:
+      - .:/app
+    command: |
+      sh -c "
+        alembic upgrade head &&
+        python scripts/seed_banks.py &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  db:
     image: postgres:15
     environment:
-      POSTGRES_USER: bank
-      POSTGRES_PASSWORD: bank87
-      POSTGRES_DB: bankdb
+      - POSTGRES_DB=bankdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=bank87
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
-      - '6379:6379'
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

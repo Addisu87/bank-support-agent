@@ -1,38 +1,79 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.services.bank_service import create_bank, list_banks
-from app.models.bank import CreateBankRequest, BankInfo
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.deps import get_current_active_user
-from app.db.schema import User
+from app.db.models.user import User
+from app.db.session import get_db
+from app.schemas.bank import BankCreate, BankListResponse, BankResponse, BankUpdate
+from app.services.bank_service import (
+    create_bank,
+    delete_bank,
+    get_all_active_banks,
+    get_bank_by_id,
+    update_bank,
+)
 
-router = APIRouter()
+router = APIRouter(tags=["banks"])
 
-@router.post("/", response_model=BankInfo, status_code=status.HTTP_201_CREATED)
-async def create_bank_endpoint(
-    request: CreateBankRequest,
+
+@router.post("/", response_model=BankCreate, status_code=status.HTTP_201_CREATED)
+async def create_new_bank(
+    bank_data: BankCreate,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
     Create a new bank.
     """
-    if request.bic is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="bic is required")
-    if request.country is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="country is required")
-    try:
-        bank = await create_bank(name=request.name, bic=request.bic, country=request.country)
-        return BankInfo.model_validate(bank)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating bank: {str(e)}")
+    bank = await create_bank(db, bank_data)
+    return bank
 
-@router.get("/{bank_id}", response_model=list[BankInfo])
-async def list_banks_endpoint(
-    current_user: User = Depends(get_current_active_user)
+
+@router.get("/", response_model=BankListResponse)
+async def get_all_banks(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    List all banks.
-    """
-    try:
-        banks = await list_banks()
-        return [BankInfo.model_validate(bank) for bank in banks]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error listing banks: {str(e)}")
+    "Get all active banks"
+    banks = await get_all_active_banks(db)
+    return BankListResponse(banks=banks, total=len(banks))
+
+
+@router.get("/{bank_id}", response_model=BankResponse)
+async def get_bank(
+    bank_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get specific bank details"""
+    bank = await get_bank_by_id(db, bank_id)
+
+    if not bank or not bank.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Bank not found"
+        )
+
+    return bank
+
+
+@router.put("/{bank_id}", response_model=BankResponse)
+async def update_bank_details(
+    bank_id: int,
+    bank_data: BankUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Update bank information"""
+    bank = await update_bank(db, bank_id, bank_data)
+    return bank
+
+
+@router.delete("/{bank_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_bank_record(
+    bank_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Delete a bank"""
+    await delete_bank(db, bank_id)
+    return {"message": "Successfully delete a bank"}
