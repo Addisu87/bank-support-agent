@@ -56,3 +56,4 @@ async def test_session(test_engine):
 def client():
     """Create sync test client"""
     return TestClient(app)
+

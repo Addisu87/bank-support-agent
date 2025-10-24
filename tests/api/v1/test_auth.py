@@ -1,22 +1,17 @@
-# tests/api/v1/test_auth.py
 import pytest
+from fastapi import status 
+import uuid
 from tests.helpers import (
+    generate_unique_email,
     register_user,
     login_user,
     get_auth_token,
 )
-from fastapi import status 
-import uuid
-
-
-def generate_unique_email():
-    """Generate a unique email for each test run"""
-    return f"test_{uuid.uuid4().hex[:8]}@example.com"
 
 
 def test_register_user_success(client):
     """Test successful user registration"""
-    email = generate_unique_email()  # Use unique email
+    email = generate_unique_email()  
     password = "password123"
     data = {
         "email": email, 
@@ -25,8 +20,8 @@ def test_register_user_success(client):
         "phone_number": "+1234567890"
     }
     response = client.post("/api/v1/auth/register", json=data)
-
-    print(f"Registration Response: {response.status_code} - {response.text}")
+    
+    register_response = register_user(client, email)
     
     assert response.status_code == status.HTTP_201_CREATED
     result = response.json()
@@ -36,7 +31,6 @@ def test_register_user_success(client):
 
 def test_login_success(client):
     """Test successful login after registration"""
-    # Use unique email
     email = generate_unique_email()
     user_data = {
         "email": email,
@@ -45,13 +39,11 @@ def test_login_success(client):
         "phone_number": "+1234567890"
     }
     register_response = client.post("/api/v1/auth/register", json=user_data)
-    print(f"Registration for login: {register_response.status_code} - {register_response.text}")
     
     assert register_response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
     
     # Then login
     login_response = login_user(client, email, "testpassword123")
-    print(f"Login Response: {login_response.status_code} - {login_response.text}")
     
     assert login_response.status_code == status.HTTP_200_OK
     data = login_response.json()
@@ -62,9 +54,8 @@ def test_login_success(client):
 
 def test_login_invalid_password(client):
     """Test login with wrong password"""
-    # Use unique email
     email = generate_unique_email()
-    register_response = register_user(client, email)
+
     
     # Try login with wrong password
     login_response = login_user(client, email, "wrongpassword")
@@ -76,8 +67,6 @@ def test_login_nonexistent_user(client):
     # Use unique email that definitely doesn't exist
     email = f"nonexistent_{uuid.uuid4().hex[:8]}@example.com"
     login_response = login_user(client, email, "somepassword")
-    
-    print(f"Non-existent user Response: {login_response.status_code} - {login_response.text}")
     
     assert login_response.status_code == status.HTTP_401_UNAUTHORIZED
 

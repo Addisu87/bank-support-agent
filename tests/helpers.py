@@ -1,6 +1,6 @@
-# tests/helpers.py
-from fastapi.testclient import TestClient
 import uuid
+
+from fastapi.testclient import TestClient
 
 
 def generate_unique_email():
@@ -21,9 +21,7 @@ def register_user(client: TestClient, email: str = None, password: str = "testpa
     }
     
     response = client.post("/api/v1/auth/register", json=user_data)
-    print(f"Register user {email}: {response.status_code} - {response.text}")
     return response
-
 
 def login_user(client: TestClient, email: str, password: str) -> dict:
     """Login user and return response"""
@@ -33,7 +31,6 @@ def login_user(client: TestClient, email: str, password: str) -> dict:
     }
     
     response = client.post("/api/v1/auth/token", data=login_data)
-    print(f"Login user {email}: {response.status_code} - {response.text}")
     return response
 
 
@@ -54,6 +51,32 @@ def get_auth_token(client: TestClient, email: str = None) -> str:
     return token_data["access_token"]
 
 
+def create_bank(client: TestClient, token: str, bank_data: dict = None) -> dict:
+    """Create a bank (financial institution)"""
+    if bank_data is None:
+        bank_data = {
+            "name": f"Test Bank {uuid.uuid4().hex[:8]}",
+            "code": f"TB{uuid.uuid4().hex[:8]}",  # Always unique
+            "country": "United States",
+            "currency": "USD",
+        }
+    
+    response = client.post(
+        "/api/v1/banks/",
+        json=bank_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    return response
+
+def get_banks(client: TestClient, token: str) -> dict:
+    """Get all banks"""
+    response = client.get(
+        "/api/v1/banks/",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    return response
+
+
 def create_user_account(client: TestClient, token: str, account_type: str = "checking", initial_deposit: float = 1000.0) -> dict:
     """Create a user bank account and return response"""
     account_data = {
@@ -68,7 +91,6 @@ def create_user_account(client: TestClient, token: str, account_type: str = "che
         json=account_data,
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Create user account: {response.status_code} - {response.text}")
     return response
 
 
@@ -78,40 +100,6 @@ def get_user_accounts(client: TestClient, token: str) -> dict:
         "/api/v1/accounts/",
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Get user accounts: {response.status_code} - {response.text}")
-    return response
-
-
-def create_bank(client: TestClient, token: str, bank_data: dict = None) -> dict:
-    """Create a bank (financial institution)"""
-    if bank_data is None:
-        bank_data = {
-            "name": "Test Bank",
-            "code": "TEST001",
-            "country": "United States",
-            "currency": "USD",
-            "contact_email": "contact@testbank.com",
-            "contact_phone": "+1234567890",
-            "website": "https://testbank.com",
-            "address": "123 Test Street, Test City"
-        }
-    
-    response = client.post(
-        "/api/v1/banks/",
-        json=bank_data,
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    print(f"Create bank: {response.status_code} - {response.text}")
-    return response
-
-
-def get_banks(client: TestClient, token: str) -> dict:
-    """Get all banks"""
-    response = client.get(
-        "/api/v1/banks/",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    print(f"Get banks: {response.status_code} - {response.text}")
     return response
 
 
@@ -130,7 +118,6 @@ def create_transaction(client: TestClient, token: str, account_id: int, transact
         json=transaction_data,
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Create transaction: {response.status_code} - {response.text}")
     return response
 
 
@@ -144,7 +131,6 @@ def get_transactions(client: TestClient, token: str, account_id: int = None) -> 
         url,
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Get transactions: {response.status_code} - {response.text}")
     return response
 
 
@@ -166,7 +152,6 @@ def create_card(client: TestClient, token: str, account_id: int, card_data: dict
         json=card_data,
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Create card: {response.status_code} - {response.text}")
     return response
 
 
@@ -180,5 +165,4 @@ def get_cards(client: TestClient, token: str, account_id: int = None) -> dict:
         url,
         headers={"Authorization": f"Bearer {token}"}
     )
-    print(f"Get cards: {response.status_code} - {response.text}")
     return response

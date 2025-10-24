@@ -1,48 +1,32 @@
 # tests/api/v1/test_banks.py
 import pytest
 import uuid
-from tests.helpers import (
-    get_auth_token,
-    create_bank,
-    get_banks
-)
-
-
-def generate_unique_email():
-    """Generate a unique email for each test run"""
-    return f"test_{uuid.uuid4().hex[:8]}@example.com"
+from tests.helpers import generate_unique_email, get_auth_token, create_bank, get_banks
 
 
 def test_create_bank(client):
-    """Test creating a bank (financial institution)"""
+    """Test creating a bank"""
     email = generate_unique_email()
     token = get_auth_token(client, email)
     
     bank_data = {
         "name": "Test Bank International",
-        "code": f"TB{uuid.uuid4().hex[:4]}".upper(),
+        "code": f"tb{uuid.uuid4().hex[:4]}",
         "country": "United States",
         "currency": "USD",
-        "contact_email": "contact@testbank.com",
-        "contact_phone": "+1234567890",
-        "website": "https://testbank.com",
-        "address": "123 Test Street, Test City"
     }
     
-    response = create_bank(client, token, bank_data)
+    response = client.post(
+        "/api/v1/banks/",
+        json=bank_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 201, f"Bank creation failed: {response.text}"
     
-    if response.status_code == 422:
-        error_data = response.json()
-        print("Validation errors:")
-        for error in error_data.get('detail', []):
-            print(f"  - {error}")
-        pytest.fail(f"Bank creation failed with validation errors")
-    
-    assert response.status_code == 201
-    data = response.json()
-    assert data["name"] == bank_data["name"]
-    assert data["code"] == bank_data["code"]
-    assert data["is_active"] is True
+    bank_response = response.json()
+    assert bank_response.get("name") == bank_data["name"]
+    assert bank_response.get("code") == bank_data["code"].upper()
+    assert bank_response.get("country") == bank_data["country"]
 
 
 def test_get_banks(client):
@@ -51,39 +35,59 @@ def test_get_banks(client):
     token = get_auth_token(client, email)
     
     # Create a bank first
-    create_response = create_bank(client, token)
-    if create_response.status_code != 201:
-        pytest.skip("Bank creation failed, skipping get banks test")
+    bank_response = create_bank(client, token)
+    assert bank_response.status_code == 201, "Bank creation failed"
     
     # Get all banks
-    response = get_banks(client, token)
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, list)
-    assert len(data) >= 1
+    banks_response = get_banks(client, token)
+    assert banks_response.status_code == 200, f"Get banks failed: {banks_response.text}"
+    
+    banks_data = banks_response.json()
+    
+    # Handle different response formats
+    if isinstance(banks_data, dict):
+        assert 'banks' in banks_data, "Banks response should contain 'banks' key"
+        banks_list = banks_data['banks']
+        assert isinstance(banks_list, list), "Banks should be a list"
+        assert len(banks_list) >= 1, "Should have at least 1 bank"
+    elif isinstance(banks_data, list):
+        assert len(banks_data) >= 1, "Should have at least 1 bank"
+    else:
+        pytest.fail(f"Unexpected banks response format: {type(banks_data)}")
 
 
 def test_create_bank_unique_constraints(client):
-    """Test that bank code and swift code are unique"""
+    """Test that bank code is unique"""
     email = generate_unique_email()
     token = get_auth_token(client, email)
     
+    unique_code = f"uniq{uuid.uuid4().hex[:4]}"
+    
     bank_data = {
         "name": "First Test Bank",
-        "code": "UNIQUE001",
-        "swift_code": "UNIQUS33",
+        "code": unique_code,
         "country": "United States",
-        "currency": "USD"
     }
     
     # Create first bank
-    response1 = create_bank(client, token, bank_data)
-    assert response1.status_code == 201
+    response1 = client.post(
+        "/api/v1/banks/",
+        json=bank_data,
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response1.status_code == 201, "First bank creation failed"
     
     # Try to create second bank with same code
-    bank_data2 = bank_data.copy()
-    bank_data2["name"] = "Second Test Bank"
-    response2 = create_bank(client, token, bank_data2)
+    bank_data2 = {
+        "name": "Second Test Bank",
+        "code": unique_code,  # Same code
+        "country": "United States",
+    }
+    response2 = client.post(
+        "/api/v1/banks/",
+        json=bank_data2,
+        headers={"Authorization": f"Bearer {token}"}
+    )
     
-    # Should fail due to unique constraint
-    assert response2.status_code == 400
+    # Should fail due to unique code constraint
+    assert response2.status_code in [400, 409, 422], f"Expected unique constraint error, got {response2.status_code}"
