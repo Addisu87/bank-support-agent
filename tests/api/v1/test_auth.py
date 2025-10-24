@@ -21,8 +21,6 @@ def test_register_user_success(client):
     }
     response = client.post("/api/v1/auth/register", json=data)
     
-    register_response = register_user(client, email)
-    
     assert response.status_code == status.HTTP_201_CREATED
     result = response.json()
     assert result["email"] == email

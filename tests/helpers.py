@@ -77,13 +77,25 @@ def get_banks(client: TestClient, token: str) -> dict:
     return response
 
 
-def create_user_account(client: TestClient, token: str, account_type: str = "checking", initial_deposit: float = 1000.0) -> dict:
+def create_user_account(client: TestClient, token: str, account_type: str = "checking") -> dict:
     """Create a user bank account and return response"""
+    # Get bank ID first
+    banks_response = client.get("/api/v1/banks/", headers={"Authorization": f"Bearer {token}"})
+    banks_data = banks_response.json()
+    banks_list = banks_data.get('banks', []) if isinstance(banks_data, dict) else banks_data
+    
+    if not banks_list:
+        # If no banks exist, create one first
+        create_bank(client, token)
+        banks_response = client.get("/api/v1/banks/", headers={"Authorization": f"Bearer {token}"})
+        banks_data = banks_response.json()
+        banks_list = banks_data.get('banks', []) if isinstance(banks_data, dict) else banks_data
+    
+    bank_id = banks_list[0].get('id')
+    
     account_data = {
         "account_type": account_type,
-        "initial_deposit": initial_deposit,
-        "account_name": f"{account_type.capitalize()} Account",
-        "bank_id": 1,  # Assuming there's a default bank with ID 1
+        "bank_id": bank_id,
     }
     
     response = client.post(
@@ -92,7 +104,6 @@ def create_user_account(client: TestClient, token: str, account_type: str = "che
         headers={"Authorization": f"Bearer {token}"}
     )
     return response
-
 
 def get_user_accounts(client: TestClient, token: str) -> dict:
     """Get user's bank accounts"""
@@ -125,7 +136,7 @@ def get_transactions(client: TestClient, token: str, account_id: int = None) -> 
     """Get transactions"""
     url = "/api/v1/transactions/"
     if account_id:
-        url = f"/api/v1/accounts/{account_id}/transactions/"
+        url = f"/api/v1/transactions/?account_id={account_id}"
     
     response = client.get(
         url,
@@ -138,22 +149,16 @@ def create_card(client: TestClient, token: str, account_id: int, card_data: dict
     """Create a card"""
     if card_data is None:
         card_data = {
-            "account_id": account_id,
-            "bank_id": 1,
-            "card_number": "4111111111111111",
-            "card_holder_name": "Test User",
+            "card_holder_name": "TEST USER",
             "card_type": "debit",
-            "expiry_date": "2026-12-31",
-            "cvv": "123"
         }
     
     response = client.post(
-        "/api/v1/cards/",
+        f"/api/v1/cards/{account_id}",
         json=card_data,
         headers={"Authorization": f"Bearer {token}"}
     )
     return response
-
 
 def get_cards(client: TestClient, token: str, account_id: int = None) -> dict:
     """Get cards"""

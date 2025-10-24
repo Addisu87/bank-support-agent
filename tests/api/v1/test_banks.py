@@ -1,7 +1,11 @@
-# tests/api/v1/test_banks.py
 import pytest
 import uuid
-from tests.helpers import generate_unique_email, get_auth_token, create_bank, get_banks
+from tests.helpers import (
+    generate_unique_email,
+    get_auth_token,
+    create_bank,
+    get_banks
+)
 
 
 def test_create_bank(client):
@@ -44,16 +48,13 @@ def test_get_banks(client):
     
     banks_data = banks_response.json()
     
-    # Handle different response formats
-    if isinstance(banks_data, dict):
-        assert 'banks' in banks_data, "Banks response should contain 'banks' key"
-        banks_list = banks_data['banks']
-        assert isinstance(banks_list, list), "Banks should be a list"
-        assert len(banks_list) >= 1, "Should have at least 1 bank"
-    elif isinstance(banks_data, list):
-        assert len(banks_data) >= 1, "Should have at least 1 bank"
-    else:
-        pytest.fail(f"Unexpected banks response format: {type(banks_data)}")
+    # Handle the actual response format (dictionary with 'banks' key)
+    assert isinstance(banks_data, dict), "Banks response should be a dictionary"
+    assert 'banks' in banks_data, "Banks response should contain 'banks' key"
+    
+    banks_list = banks_data['banks']
+    assert isinstance(banks_list, list), "Banks should be a list"
+    assert len(banks_list) >= 1, "Should have at least 1 bank"
 
 
 def test_create_bank_unique_constraints(client):
