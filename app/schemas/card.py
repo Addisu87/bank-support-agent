@@ -29,7 +29,7 @@ class CardResponse(CardBase):
     cvv: str
     status: CardStatus
     expiry_date: datetime
-    
+
     created_at: datetime
     updated_at: datetime | None
 

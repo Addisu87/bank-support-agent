@@ -1,10 +1,10 @@
 import uuid
+from typing import List
 
 import logfire
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from app.db.models.account import Account
 from app.db.models.transaction import Transaction, TransactionStatus, TransactionType
@@ -18,7 +18,6 @@ from app.schemas.transaction import (
 from app.services.account_service import (
     get_account_by_id,
     get_account_by_number,
-    get_all_accounts,
     update_account_balance,
 )
 
@@ -32,7 +31,9 @@ async def generate_transaction_reference() -> str:
     return f"TXN{uuid.uuid4().hex[:12].upper()}"
 
 
-async def _verify_transaction_ownership(db: AsyncSession, transaction: Transaction, user_id: int) -> None:
+async def _verify_transaction_ownership(
+    db: AsyncSession, transaction: Transaction, user_id: int
+) -> None:
     """Helper to verify transaction belongs to user"""
     account = await db.get(Account, transaction.account_id)
     if not account or account.user_id != user_id:
@@ -40,6 +41,7 @@ async def _verify_transaction_ownership(db: AsyncSession, transaction: Transacti
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this transaction",
         )
+
 
 # ------------------------
 # 💰 Transaction CRUD Functions
@@ -97,9 +99,9 @@ async def get_transaction_by_reference(db: AsyncSession, reference: str) -> Tran
         )
         return result.scalar_one_or_none()
 
+
 async def get_transactions(
-    db: AsyncSession, 
-    query: TransactionQuery
+    db: AsyncSession, query: TransactionQuery
 ) -> List[Transaction]:
     """Get transactions with filtering"""
     with logfire.span("get_transactions", query=query.model_dump()):
@@ -122,11 +124,10 @@ async def get_transactions(
 
         result = await db.execute(stmt)
         return result.scalars().all()
-    
+
+
 async def get_user_all_transactions(
-    db: AsyncSession, 
-    user_id: int,
-    limit: int = 50
+    db: AsyncSession, user_id: int, limit: int = 50
 ) -> List[Transaction]:
     """Get all transactions for a user across all accounts"""
     with logfire.span("get_user_all_transactions", user_id=user_id, limit=limit):
@@ -139,7 +140,8 @@ async def get_user_all_transactions(
             .limit(limit)
         )
         return result.scalars().all()
-    
+
+
 async def get_transaction_summary(db: AsyncSession, account_id: int) -> dict:
     with logfire.span("get_transaction_summary", account_id=account_id):
         """Get transaction summary for an account"""
@@ -175,7 +177,10 @@ async def get_transaction_summary(db: AsyncSession, account_id: int) -> dict:
 
         return summary
 
-async def delete_transaction(db: AsyncSession, transaction_id: int, user_id: int) -> bool:
+
+async def delete_transaction(
+    db: AsyncSession, transaction_id: int, user_id: int
+) -> bool:
     """Delete transaction by ID"""
     with logfire.span("delete_transaction", transaction_id=transaction_id):
         transaction = await get_transaction(db, transaction_id)

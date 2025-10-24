@@ -11,15 +11,14 @@ from app.core.config import settings
 from app.schemas.account import AccountResponse
 from app.schemas.bank import BankResponse
 from app.schemas.card import CardResponse
-from app.schemas.transaction import TransactionQuery
 from app.schemas.transaction import (
     DepositRequest,
+    TransactionQuery,
     TransactionResponse,
     TransferRequest,
     WithdrawalRequest,
 )
 from app.schemas.user import UserResponse
-from app.services.user_service import get_user_by_id
 from app.services.account_service import (
     get_account_by_id,
     get_account_by_number,
@@ -28,14 +27,14 @@ from app.services.account_service import (
 from app.services.bank_service import get_all_active_banks
 from app.services.card_service import get_user_cards
 from app.services.transaction_service import (
+    deposit_funds,
+    get_transaction_by_reference,
     get_transactions,
     get_user_all_transactions,
-    get_transaction_by_reference,
-    deposit_funds,
     transfer_funds,
     withdraw_funds,
 )
-
+from app.services.user_service import get_user_by_id
 
 # ------------------------
 # 🏦 Pydantic Models for Agent State
@@ -128,6 +127,7 @@ async def get_account_balance_details(
         logfire.error("Error getting account balance", error=str(e))
         return None
 
+
 @banking_agent.tool
 async def get_user_payment_cards(
     ctx: RunContext[AgentDependencies],
@@ -154,7 +154,7 @@ async def get_user_profile(
     except Exception as e:
         logfire.error("Error getting user profile", error=str(e))
         return None
-    
+
 
 @banking_agent.tool
 async def get_account_detail_by_id(
@@ -191,13 +191,16 @@ async def get_user_transactions_across_accounts(
     try:
         if limit > 50:
             limit = 50
-        
+
         # Use the renamed function
-        transactions = await get_user_all_transactions(ctx.deps.db, ctx.deps.user_id, limit)
+        transactions = await get_user_all_transactions(
+            ctx.deps.db, ctx.deps.user_id, limit
+        )
         return [TransactionResponse.model_validate(tx) for tx in transactions]
     except Exception as e:
         logfire.error("Error getting user transactions", error=str(e), stack_trace=True)
         return []
+
 
 @banking_agent.tool
 async def get_account_transactions(
@@ -217,10 +220,12 @@ async def get_account_transactions(
         # Use the correct get_transactions function with TransactionQuery
         query = TransactionQuery(account_id=account.id, limit=limit)
         transactions = await get_transactions(ctx.deps.db, query)
-        
+
         return [TransactionResponse.model_validate(tx) for tx in transactions]
     except Exception as e:
-        logfire.error("Error getting account transactions", error=str(e), stack_trace=True)
+        logfire.error(
+            "Error getting account transactions", error=str(e), stack_trace=True
+        )
         return []
 
 
@@ -307,7 +312,6 @@ async def withdraw_funds_an_account(
         return {"error": str(e), "success": False}
 
 
-
 @banking_agent.tool
 async def get_transaction_details_by_reference(
     ctx: RunContext[AgentDependencies], reference: str
@@ -324,9 +328,11 @@ async def get_transaction_details_by_reference(
         logfire.error("Error getting transaction by reference", error=str(e))
         return None
 
+
 # ------------------------
 # 🚀 Agent Functions
 # ------------------------
+
 
 async def chat_with_agent_enhanced(
     user_query: str, db: AsyncSession, user_id: int
@@ -344,18 +350,17 @@ async def chat_with_agent_enhanced(
 
             # Simple approach - just return the string representation
             response_text = str(result)
-            
+
             logfire.info(
-                "Enhanced agent response successful",
-                response_length=len(response_text)
+                "Enhanced agent response successful", response_length=len(response_text)
             )
             return response_text
 
         except Exception as e:
             logfire.error(
-                "Enhanced agent chat error", 
-                error=str(e), 
+                "Enhanced agent chat error",
+                error=str(e),
                 error_type=type(e).__name__,
-                stack_trace=True
+                stack_trace=True,
             )
             return f"I apologize, but I'm having trouble processing your request. Error: {str(e)}"

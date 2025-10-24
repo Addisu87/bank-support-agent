@@ -3,12 +3,13 @@ import asyncio
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
 
 from app.db.models.base import Base
 from app.main import app
 
 # Test database
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:password@localhost:5432/test_bankdb"
+TEST_DATABASE_URL = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
 
 
 @pytest.fixture(scope="session")
@@ -47,13 +48,11 @@ async def test_session(test_engine):
 
     async with async_session() as session:
         yield session
-
-    await test_engine.dispose()
+        await session.rollback()
+        await session.close()
 
 
 @pytest.fixture
 def client():
-    """Create test client"""
-    from fastapi.testclient import TestClient
-
+    """Create sync test client"""
     return TestClient(app)
