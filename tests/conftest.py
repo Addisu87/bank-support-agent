@@ -7,9 +7,8 @@ from fastapi.testclient import TestClient
 
 from app.db.models.base import Base
 from app.main import app
-
-# Test database
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
+from app.db.session import get_db
+from app.core.config import settings
 
 
 @pytest.fixture(scope="session")
@@ -23,7 +22,9 @@ def event_loop():
 @pytest.fixture(scope="session")
 async def test_engine():
     """Create test database engine"""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+    # Ensure we have a valid database URL
+    test_db_url = settings.current_database_url
+    engine = create_async_engine(test_db_url, echo=False, future=True)
 
     # Create tables
     async with engine.begin() as conn:
@@ -53,7 +54,11 @@ async def test_session(test_engine):
 
 
 @pytest.fixture
-def client():
-    """Create sync test client"""
-    return TestClient(app)
-
+def client(test_session):
+    """Create test client with overridden dependencies"""
+    def override_get_db():
+        yield test_session
+    
+    app.dependency_overrides[get_db] = override_get_db  
+    yield TestClient(app)
+    app.dependency_overrides.clear()

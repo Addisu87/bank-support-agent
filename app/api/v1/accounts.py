@@ -22,17 +22,6 @@ from app.services.account_service import (
 
 router = APIRouter(tags=["accounts"])
 
-
-@router.get("/", response_model=List[AccountResponse])
-async def get_all_user_accounts(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Get all accounts for current user"""
-    accounts = await get_all_accounts(db, current_user.id)
-    return accounts
-
-
 @router.post("/", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_account(
     account_data: AccountCreate,
@@ -43,6 +32,15 @@ async def create_new_account(
     account = await create_account(db, current_user.id, account_data)
     return account
 
+
+@router.get("/", response_model=List[AccountResponse])
+async def get_all_user_accounts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get all accounts for current user"""
+    accounts = await get_all_accounts(db, current_user.id)
+    return accounts
 
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(
