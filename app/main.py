@@ -18,14 +18,13 @@ if settings.LOGFIRE_TOKEN:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup - Initialize PostgreSQL database
     await create_tables()
-    logfire.info("Database initialized successfully.")
+    logfire.info("PostgreSQL database initialized successfully")
     yield
-
     # Shutdown
     await engine.dispose()
-    logfire.info("Application shutdown complete.")
+    logfire.info("Application shutdown complete")
 
 
 # Main FastAPI app
@@ -39,11 +38,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-origins = ["http://localhost:8080"]
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,7 +58,12 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Health check
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": settings.PROJECT_NAME, "version": "1.0.0"}
+    return {
+        "status": "healthy", 
+        "service": settings.PROJECT_NAME, 
+        "version": "1.0.0",
+        "database": "postgresql"
+    }
 
 
 @app.get("/")

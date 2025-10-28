@@ -6,8 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Load environment variables from .env file
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore",  env_file_encoding="utf-8")
+    # Load environment variables
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_file_encoding="utf-8")
     
     # Environment
     ENV_STATE: Literal["dev", "prod", "test"] = "dev"
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     # Redis Cache
     REDIS_URL: str | None = None
-    CACHE_EXPIRE_SECONDS: int = 300  # 5 minutes
+    CACHE_EXPIRE_SECONDS: int = 300
     
     # Logging
     LOGFIRE_TOKEN: str | None = None
@@ -38,14 +38,14 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     
-     # App
+    # App
     PORT: int = 8000
     DEBUG: bool = True
     
     # Email
     MAIL_USERNAME: str | None = None
-    MAIL_PASSWORD:  str | None = None
-    MAIL_FROM:  str | None = None
+    MAIL_PASSWORD: str | None = None
+    MAIL_FROM: str | None = None
     MAIL_PORT: int = 587
     MAIL_SERVER: str | None = None
     MAIL_STARTTLS: bool = True
@@ -53,18 +53,23 @@ class Settings(BaseSettings):
     USE_CREDENTIALS: bool = True
     VALIDATE_CERTS: bool = False
     
-    
     @property
     def current_database_url(self) -> str:
-        """Get the appropriate database URL based on environment"""
+        """Get PostgreSQL database URL - convert format if needed"""
+        # Use test database for test environment
         if self.ENV_STATE == "test":
-            if self.TEST_DATABASE_URL is None:
-                raise ValueError("TEST_DATABASE_URL is not set for test environment")
-            return self.TEST_DATABASE_URL
+            if not self.TEST_DATABASE_URL:
+                raise ValueError("TEST_DATABASE_URL is required for test environment")
+            db_url = self.TEST_DATABASE_URL
+        else:
+            if not self.DATABASE_URL:
+                raise ValueError("DATABASE_URL is required")
+            db_url = self.DATABASE_URL
         
-        if self.DATABASE_URL is None:
-            raise ValueError("DATABASE_URL is not set")
-        return self.DATABASE_URL
+        # Convert postgres:// to postgresql+asyncpg:// for SQLAlchemy
+        if db_url.startswith("postgres://"):
+            return db_url.replace("postgres://", "postgresql+asyncpg://")
+        return db_url
 
 
 @lru_cache()
