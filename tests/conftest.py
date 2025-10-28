@@ -1,15 +1,22 @@
 import asyncio
-from typing import AsyncGenerator, Generator
+import os
+from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import sessionmaker
 from httpx import AsyncClient, ASGITransport
 
+# Set test environment before any imports
+os.environ["ENV_STATE"] = "test"
+
+import logfire
 from app.db.models.base import Base
 from app.main import app
 from app.core.config import settings
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -20,8 +27,8 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 async def test_engine():
-    """Create test database engine"""
-    # Ensure we have a valid database URL
+    """Create test database engine and tables"""
+
     test_db_url = settings.current_database_url
     engine = create_async_engine(test_db_url, echo=False, future=True)
 
@@ -37,19 +44,21 @@ async def test_engine():
         await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
-@pytest.fixture
+
+@pytest_asyncio.fixture
 async def test_session(test_engine):
-    """Create a fresh database session for each test"""
+    """Create a new database session for each test, with rollback."""
     async_session = sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
 
     async with async_session() as session:
-        yield session
-        await session.rollback()
-        await session.close()
-
-
+        await session.begin()
+        try:
+            yield session
+        finally:
+            await session.rollback()
+            await session.close()
 
 @pytest_asyncio.fixture(scope="session")
 async def client():
