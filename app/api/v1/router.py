@@ -9,6 +9,7 @@ from app.api.v1.banks import router as banks_router
 from app.api.v1.cards import router as cards_router
 from app.api.v1.transactions import router as transactions_router
 from app.api.v1.users import router as users_router
+from app.api.v1.email import router as email_router
 
 api_router = APIRouter()
 
@@ -20,3 +21,4 @@ api_router.include_router(account_router, prefix="/accounts")
 api_router.include_router(transactions_router, prefix="/transactions")
 api_router.include_router(cards_router, prefix="/cards")
 api_router.include_router(agent_router, prefix="/agent")
+api_router.include_router(email_router, prefix="/email")

@@ -28,6 +28,8 @@ dependencies = [
     "databases[asyncpg]>=0.9.0",
     "python-multipart>=0.0.20",
     "redis>=5.0.0",
+    "fastapi-mail>=1.5.3",
+    "jinja2>=3.1.6",
 ]
 
 [project.optional-dependencies]

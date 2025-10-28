@@ -24,7 +24,7 @@ class UserCreate(UserBase):
 
 
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -59,4 +59,4 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    email: str | None = None
+    email: EmailStr | None = None

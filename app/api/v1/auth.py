@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.config import settings
@@ -14,6 +14,7 @@ from app.services.user_service import (
     change_user_password,
     create_user,
 )
+from app.services.email_service import send_email
 
 router = APIRouter(tags=["authentication"])
 
@@ -21,10 +22,22 @@ router = APIRouter(tags=["authentication"])
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    background_tasks: BackgroundTasks,
+    user_data: UserCreate,
+    db: AsyncSession = Depends(get_db)
+):
     """Register a new user account."""
-    user = await create_user(db, user_data)
-    return user
+    user_db = await create_user(db, user_data)
+    
+    # Send welcome email directly
+    background_tasks.add_task(
+        send_email, 
+        str(user_db.email),
+        "user_welcome",  # template_type
+        {"user_name": str(user_db.full_name)} # template_data
+    )
+    return UserResponse.model_validate(user_db)
 
 
 @router.post("/token", response_model=Token)

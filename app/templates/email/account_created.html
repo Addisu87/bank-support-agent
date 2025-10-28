@@ -1,0 +1,18 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>Hello {{ user_name }}!</h2>
+<p>Your new bank account has been created successfully.</p>
+
+<div class="info-box">
+    <h3>Account Details:</h3>
+    <p><strong>Account Number:</strong> {{ account_number }}</p>
+    <p><strong>Account Type:</strong> {{ account_type }}</p>
+    <p><strong>Status:</strong> Active</p>
+    {% if balance %}
+    <p><strong>Initial Balance:</strong> ${{ "%.2f"|format(balance) }}</p>
+    {% endif %}
+</div>
+
+<p>You can now start using your account for transactions, transfers, and more.</p>
+{% endblock %}

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.db.session import create_tables, engine
-from app.middleware.logging import LogfireMiddleware
+from app.core.logging import LogfireMiddleware
 
 # Configure logfire
 if settings.LOGFIRE_TOKEN:
