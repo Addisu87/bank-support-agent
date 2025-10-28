@@ -125,17 +125,4 @@ async def send_email(to_email: str, template_type: str, template_data: dict):
                 _tags=["email", "error", "failure", "smtp"]
             )
             
-            # Print to console for immediate visibility
-            print("=" * 50)
-            print("EMAIL SENDING FAILED!")
-            print(f"Error: {e}")
-            print(f"Type: {type(e).__name__}")
-            print("Configuration:")
-            print(f"  Server: {settings.MAIL_SERVER}")
-            print(f"  Port: {settings.MAIL_PORT}")
-            print(f"  Username: {settings.MAIL_USERNAME}")
-            print(f"  STARTTLS: {settings.MAIL_STARTTLS}")
-            print(f"  SSL/TLS: {settings.MAIL_SSL_TLS}")
-            print("=" * 50)
-            
             return False
