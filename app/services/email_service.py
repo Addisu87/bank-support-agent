@@ -52,8 +52,7 @@ async def send_email(to_email: str, template_type: str, template_data: dict):
     """Send email using Jinja2 template - always called as background task"""
     with logfire.span("send_email", 
                      email=to_email, 
-                     template_type=template_type,
-                     email_domain=to_email.split('@')[-1]) as span:
+                     template_type=template_type) as span:
         try:
             # Add template data context (excluding sensitive info)
             safe_template_data = {
