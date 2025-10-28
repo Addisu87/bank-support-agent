@@ -1,6 +1,7 @@
 from typing import List
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
@@ -26,6 +27,7 @@ from app.services.transaction_service import (
     transfer_funds,
     withdraw_funds,
 )
+from app.services.email_service import send_email
 
 router = APIRouter(tags=["transactions"])
 
@@ -34,6 +36,7 @@ router = APIRouter(tags=["transactions"])
     "/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_new_transaction(
+    background_tasks: BackgroundTasks,
     transaction_data: TransactionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -48,6 +51,22 @@ async def create_new_transaction(
         )
 
     transaction = await create_transaction(db, transaction_data)
+    
+    # send transaction alert email
+    background_tasks.add_task(
+        send_email,
+        str(current_user.email),  # to_email
+        "transaction_alert",      # template_type
+        {
+            "user_name": str(current_user.full_name),
+            "amount": transaction.amount,
+            "transaction_type": transaction.transaction_type.value,
+            "current_balance": account.balance, 
+            "description": transaction.description or "",
+            "is_suspicious": False,
+            "transaction_date": datetime.now().strftime("%Y-%m-%d %H:%M")
+        }
+    )
     return transaction
 
 

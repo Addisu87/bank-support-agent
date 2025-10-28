@@ -8,10 +8,11 @@ from tests.helpers import (
 )
 
 
-def test_create_bank(client):
+@pytest.mark.asyncio
+async def test_create_bank(client):
     """Test creating a bank"""
     email = generate_unique_email()
-    token = get_auth_token(client, email)
+    token = await get_auth_token(client, email)
     
     bank_data = {
         "name": "Test Bank International",
@@ -20,7 +21,7 @@ def test_create_bank(client):
         "currency": "USD",
     }
     
-    response = client.post(
+    response = await client.post(
         "/api/v1/banks/",
         json=bank_data,
         headers={"Authorization": f"Bearer {token}"}
@@ -33,17 +34,18 @@ def test_create_bank(client):
     assert bank_response.get("country") == bank_data["country"]
 
 
-def test_get_banks(client):
+@pytest.mark.asyncio
+async def test_get_banks(client):
     """Test getting all banks"""
     email = generate_unique_email()
-    token = get_auth_token(client, email)
+    token = await get_auth_token(client, email)
     
     # Create a bank first
-    bank_response = create_bank(client, token)
+    bank_response = await create_bank(client, token)
     assert bank_response.status_code == 201, "Bank creation failed"
     
     # Get all banks
-    banks_response = get_banks(client, token)
+    banks_response = await get_banks(client, token)
     assert banks_response.status_code == 200, f"Get banks failed: {banks_response.text}"
     
     banks_data = banks_response.json()
@@ -57,10 +59,11 @@ def test_get_banks(client):
     assert len(banks_list) >= 1, "Should have at least 1 bank"
 
 
-def test_create_bank_unique_constraints(client):
+@pytest.mark.asyncio
+async def test_create_bank_unique_constraints(client):
     """Test that bank code is unique"""
     email = generate_unique_email()
-    token = get_auth_token(client, email)
+    token = await get_auth_token(client, email)
     
     unique_code = f"uniq{uuid.uuid4().hex[:4]}"
     
@@ -71,7 +74,7 @@ def test_create_bank_unique_constraints(client):
     }
     
     # Create first bank
-    response1 = client.post(
+    response1 = await client.post(
         "/api/v1/banks/",
         json=bank_data,
         headers={"Authorization": f"Bearer {token}"}
@@ -84,7 +87,7 @@ def test_create_bank_unique_constraints(client):
         "code": unique_code,  # Same code
         "country": "United States",
     }
-    response2 = client.post(
+    response2 = await client.post(
         "/api/v1/banks/",
         json=bank_data2,
         headers={"Authorization": f"Bearer {token}"}

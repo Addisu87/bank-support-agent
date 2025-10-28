@@ -9,20 +9,21 @@ from tests.helpers import (
 )
 
 
-def test_create_transaction(client):
+@pytest.mark.asyncio
+async def test_create_transaction(client):
     """Test creating a transaction"""
     email = generate_unique_email()
-    token = get_auth_token(client, email)
+    token = await get_auth_token(client, email)
     
     # Create bank and account using helpers
-    create_bank(client, token)
-    account_response = create_user_account(client, token)
+    await create_bank(client, token)
+    account_response = await create_user_account(client, token)
     assert account_response.status_code == 201
     
     account_id = account_response.json()["id"]
     
     # Create transaction using helper
-    transaction_response = create_transaction(client, token, account_id)
+    transaction_response = await create_transaction(client, token, account_id)
     assert transaction_response.status_code == 201
     
     transaction_data = transaction_response.json()
@@ -31,24 +32,24 @@ def test_create_transaction(client):
     assert "id" in transaction_data
 
 
-def test_get_transactions_with_account_filter(client):
+@pytest.mark.asyncio
+async def test_get_transactions_with_account_filter(client):
     """Test getting transactions with account filter"""
     email = generate_unique_email()
-    token = get_auth_token(client, email)
+    token = await get_auth_token(client, email)
 
     # Create bank and account using helpers
-    create_bank(client, token)
-    account_response = create_user_account(client, token)
+    await create_bank(client, token)
+    account_response = await create_user_account(client, token)
     assert account_response.status_code == 201
 
     account_id = account_response.json()["id"]
 
     # Create transaction using helper
-    transaction_response = create_transaction(client, token, account_id)
-    assert transaction_response.status_code == 201
+    await create_transaction(client, token, account_id)
 
     # Get transactions with account filter using helper
-    transactions_response = get_transactions(client, token, account_id=account_id)
+    transactions_response = await get_transactions(client, token, account_id=account_id)
     assert transactions_response.status_code == 200
     
     transactions = transactions_response.json()

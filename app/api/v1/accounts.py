@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
@@ -19,8 +19,32 @@ from app.services.account_service import (
     get_all_accounts,
     update_account,
 )
+from app.services.email_service import send_email
 
 router = APIRouter(tags=["accounts"])
+
+@router.post("/", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
+async def create_new_account(
+    background_tasks: BackgroundTasks,
+    account_data: AccountCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Create a new account for current user"""
+    account = await create_account(db, current_user.id, account_data)
+    
+    background_tasks.add_task(
+        send_email,
+        str(current_user.email),
+        "account_created",
+        {
+            "user_name": current_user.full_name,
+            "account_number": account.account_number,
+            "account_type": account.account_type,
+            "balance": account.balance
+        }
+    )
+    return account
 
 
 @router.get("/", response_model=List[AccountResponse])
@@ -31,18 +55,6 @@ async def get_all_user_accounts(
     """Get all accounts for current user"""
     accounts = await get_all_accounts(db, current_user.id)
     return accounts
-
-
-@router.post("/", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
-async def create_new_account(
-    account_data: AccountCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
-    """Create a new account for current user"""
-    account = await create_account(db, current_user.id, account_data)
-    return account
-
 
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(

@@ -1,0 +1,25 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>Hello {{ user_name }}!</h2>
+<p>Your new card has been issued successfully.</p>
+
+<div class="info-box">
+    <h3>Card Details:</h3>
+    <p><strong>Card Type:</strong> {{ card_type }}</p>
+    <p><strong>Card Number:</strong> **** **** **** {{ last_four_digits }}</p>
+    {% if expiry_date %}
+    <p><strong>Expiry Date:</strong> {{ expiry_date }}</p>
+    {% endif %}
+    <p><strong>Status:</strong> Active</p>
+</div>
+
+<p>Your card will be delivered to your registered address within 5-7 business days.</p>
+
+<div class="info-box">
+    <h3>Important Security Notes:</h3>
+    <p>• Activate your card upon receipt</p>
+    <p>• Set up your PIN at any ATM</p>
+    <p>• Keep your card details secure</p>
+</div>
+{% endblock %}

@@ -1,16 +1,15 @@
 import asyncio
+from typing import AsyncGenerator, Generator
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
 
 from app.db.models.base import Base
 from app.main import app
-
-# Test database
-TEST_DATABASE_URL = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
-
+from app.core.config import settings
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -19,11 +18,12 @@ def event_loop():
     yield loop
     loop.close()
 
-
 @pytest.fixture(scope="session")
 async def test_engine():
     """Create test database engine"""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+    # Ensure we have a valid database URL
+    test_db_url = settings.current_database_url
+    engine = create_async_engine(test_db_url, echo=False, future=True)
 
     # Create tables
     async with engine.begin() as conn:
@@ -37,8 +37,6 @@ async def test_engine():
         await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
-
-
 @pytest.fixture
 async def test_session(test_engine):
     """Create a fresh database session for each test"""
@@ -52,8 +50,13 @@ async def test_session(test_engine):
         await session.close()
 
 
-@pytest.fixture
-def client():
-    """Create sync test client"""
-    return TestClient(app)
 
+@pytest_asyncio.fixture(scope="session")
+async def client():
+    """
+    Asynchronous test client fixture for testing async endpoints.
+    """
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        yield ac

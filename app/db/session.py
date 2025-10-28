@@ -5,14 +5,12 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.db.models.base import Base
 
-# Ensure DATABASE_URL uses asyncpg
-# Example: postgresql+asyncpg://user:password@localhost/dbname
-if not settings.DATABASE_URL:
-    raise ValueError("DATABASE_URL is not set")
+# database connection
+database_url = settings.current_database_url
 
 # Create async engine
 engine = create_async_engine(
-    settings.DATABASE_URL, echo=True, future=True, poolclass=NullPool
+    database_url, echo=True, future=True, poolclass=NullPool
 )
 
 # Create async session factory

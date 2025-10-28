@@ -1,0 +1,26 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2>Hello {{ user_name }}!</h2>
+<p>A new transaction has been processed on your account.</p>
+
+<div class="transaction-box">
+    <h3>Transaction Details:</h3>
+    <p><strong>Amount:</strong> ${{ "%.2f"|format(amount) }}</p>
+    <p><strong>Type:</strong> {{ transaction_type|title }}</p>
+    <p><strong>Date:</strong> {{ transaction_date|default('Today') }}</p>
+    <p><strong>Current Balance:</strong> ${{ "%.2f"|format(current_balance) }}</p>
+    {% if description %}
+    <p><strong>Description:</strong> {{ description }}</p>
+    {% endif %}
+</div>
+
+{% if is_suspicious %}
+<div class="alert-box">
+    <h3>Security Alert</h3>
+    <p>If you didn't authorize this transaction, please contact us immediately.</p>
+</div>
+{% endif %}
+
+<p>Thank you for banking with us.</p>
+{% endblock %}

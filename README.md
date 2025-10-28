@@ -54,7 +54,7 @@ docker-compose logs -f web
     ```
 6. **Run Tests**
     ```bash
-    pytest tests/ -v
+    uv run pytest tests/ -v
     ```
 7. **Format and sort imports in your entire project**
     ```bash
