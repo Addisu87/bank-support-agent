@@ -39,7 +39,7 @@ async def create_new_account(
         "account_created",
         {
             "user_name": current_user.full_name,
-            "account_number": current_user.account_number,
+            "account_number": account.account_number,
             "account_type": account.account_type,
             "balance": account.balance
         }

@@ -1,15 +1,15 @@
 import asyncio
+from typing import AsyncGenerator, Generator
 
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
+from httpx import AsyncClient, ASGITransport
 
 from app.db.models.base import Base
 from app.main import app
-from app.db.session import get_db
 from app.core.config import settings
-
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -17,7 +17,6 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
-
 
 @pytest.fixture(scope="session")
 async def test_engine():
@@ -38,8 +37,6 @@ async def test_engine():
         await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
-
-
 @pytest.fixture
 async def test_session(test_engine):
     """Create a fresh database session for each test"""
@@ -53,12 +50,13 @@ async def test_session(test_engine):
         await session.close()
 
 
-@pytest.fixture
-def client(test_session):
-    """Create test client with overridden dependencies"""
-    def override_get_db():
-        yield test_session
-    
-    app.dependency_overrides[get_db] = override_get_db  
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+
+@pytest_asyncio.fixture(scope="session")
+async def client():
+    """
+    Asynchronous test client fixture for testing async endpoints.
+    """
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        yield ac
