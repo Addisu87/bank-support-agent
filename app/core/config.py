@@ -66,9 +66,6 @@ class Settings(BaseSettings):
                 raise ValueError("DATABASE_URL is required")
             db_url = self.DATABASE_URL
         
-        # Convert postgres:// to postgresql+asyncpg:// for SQLAlchemy
-        if db_url.startswith("postgres://"):
-            return db_url.replace("postgres://", "postgresql+asyncpg://")
         return db_url
 
 
