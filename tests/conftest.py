@@ -44,7 +44,7 @@ def event_loop():
 @pytest_asyncio.fixture
 async def engine():
     eng = create_async_engine(
-        settings.DATABASE_URL,
+        settings.TEST_DATABASE_URL,
         echo=False,
         future=True,
         pool_size=3,

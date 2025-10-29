@@ -19,6 +19,7 @@ class GlobalConfig(BaseConfig):
 
     # Database
     DATABASE_URL: str
+    TEST_DATABASE_URL: str | None = None
 
     # AI/ML
     PYDANTIC_AI_MODEL: str | None = None
@@ -69,9 +70,7 @@ class ProdConfig(GlobalConfig):
 
 class TestConfig(GlobalConfig):
     model_config = SettingsConfigDict(env_prefix="TEST_", extra="ignore")
-    DATABASE_URL: str = os.environ.get(
-        "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
-    )
+    TEST_DATABASE_URL: str = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
     DB_FORCE_ROLL_BACK: bool = True
     PYDANTIC_AI_MODEL: str = "test-model"
     DEEPSEEK_API_KEY: str = "test-key"
