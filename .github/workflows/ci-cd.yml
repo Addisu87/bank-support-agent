@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -23,31 +23,55 @@ jobs:
         ports: [6379:6379]
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - uses: actions/setup-python@v4
-      with:
-        python-version: '3.13'
-    
-    - uses: astral-sh/setup-uv@v3
-    
-    - run: uv sync
-    
-    - run: uv run alembic upgrade head
-      env:
-        DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
-    
-    - run: uv run pytest
-      env:
-        DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
-        SECRET_KEY: test-secret-key
-        REDIS_URL: redis://localhost:6379
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install UV and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install uv
+
+      - name: Sync UV (initialize environment)
+        run: uv sync
+
+      - name: Apply database migrations
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
+
+      - name: Run tests
+        run: uv run pytest -v --disable-warnings
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
+          SECRET_KEY: test-secret-key
+          REDIS_URL: redis://localhost:6379
+          DEEPSEEK_API_KEY: test-key   # ensures DeepSeekProvider doesn't fail in tests
 
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    - run: echo "Deploy to production"
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t my-app:latest .
+          docker tag my-app:latest addisu87/my-app:latest
+          docker push addisu87/my-app:latest
+
+      - name: Deploy to production
+        run: |
+          echo "Here you can run your deployment commands"
+          # Example: update AWS ECS service or Heroku app
