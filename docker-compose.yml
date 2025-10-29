@@ -6,18 +6,18 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:bank87@db:5432/bankdb
-      - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
-      - DEBUG=false
+      DATABASE_URL: postgresql+asyncpg://postgres:bank87@db:5432/bankdb
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${SECRET_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN}
+      DEBUG: "false"
     depends_on:
       - db
       - redis
     volumes:
       - .:/app
-    command: |
+    command: >
       sh -c "
         alembic upgrade head &&
         python scripts/seed_banks.py &&
@@ -27,9 +27,9 @@ services:
   db:
     image: postgres:15
     environment:
-      - POSTGRES_DB=bankdb
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=bank87
+      POSTGRES_DB: bankdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: bank87
     ports:
       - "5432:5432"
     volumes:
