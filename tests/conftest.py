@@ -10,9 +10,11 @@ from app.db.models.base import Base
 from app.main import app
 from app.core.config import settings
 from app.db.session import get_db
+from unittest.mock import patch, AsyncMock
 
 # Force test environment
 os.environ["ENV_STATE"] = "test"
+os.environ["DEEPSEEK_API_KEY"] = "test-key"  # dummy key for tests
 
 # ------------------------
 # ENGINE (CREATED PER FUNCTION)
@@ -79,3 +81,12 @@ async def client(db):
 
     app.dependency_overrides.clear()
 
+
+
+@pytest.fixture(autouse=True)
+def mock_deepseek_provider():
+    with patch(
+        "app.services.llm_agent.DeepSeekProvider",
+        new_callable=AsyncMock
+    ) as mock_provider:
+        yield mock_provider
