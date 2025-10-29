@@ -84,10 +84,9 @@ docker-compose logs -f web
 ## Testing
 
 To run the tests, use the following command:
-
-```bash
-pytest
-```
+    ```bash
+    uv run pytest -v
+    ```
 
 ## API Reference
 
