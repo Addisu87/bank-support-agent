@@ -1,11 +1,17 @@
 FROM python:3.13-slim-bookworm
 
+# Install system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
-        build-essential && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        build-essential \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+# Download UV install script
 ADD https://astral.sh/uv/install.sh /install.sh
-RUN chmod -R 755 /install.sh && /install.sh && rm /install.sh
+
+# Run the UV installer
+RUN chmod +x /install.sh && /install.sh && rm /install.sh
 
 # Set up the UV environment path correctly
 ENV PATH="/root/.local/bin:${PATH}"
@@ -14,16 +20,15 @@ WORKDIR /app
 
 COPY . .
 
+# Initialize UV environment
 RUN uv sync
 
-ENV PATH="/app/.venv/bin:${PATH}"
+# Expose FastAPI port
+EXPOSE 8000
 
-
-# Expose the specified port for FastAPI
-EXPOSE $PORT
-
-# Health check
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default CMD to run FastAPI with migrations and seed script
+CMD ["sh", "-c", "alembic upgrade head && python scripts/seed_banks.py && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
