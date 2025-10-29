@@ -43,13 +43,19 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
 
+      - name: Create test database
+        run: |
+          psql -h localhost -U postgres -c "CREATE DATABASE test_bankdb;"
+        env:
+          PGPASSWORD: bank87
+
       - name: Run tests
         run: uv run pytest -v --disable-warnings
         env:
-          DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/bankdb
+          DATABASE_URL: postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb
           SECRET_KEY: test-secret-key
           REDIS_URL: redis://localhost:6379
-          DEEPSEEK_API_KEY: test-key   # ensures DeepSeekProvider doesn't fail in tests
+          DEEPSEEK_API_KEY: test-key
 
   deploy:
     if: github.ref == 'refs/heads/main'
