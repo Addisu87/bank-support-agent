@@ -1,40 +1,34 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.core.config import settings
 from app.db.models.base import Base
 
-# database connection
-database_url = settings.current_database_url
-
 # Create async engine
 engine = create_async_engine(
-    database_url, echo=True, future=True, poolclass=NullPool
+    settings.DATABASE_URL,
+    echo=True,
+    future=True, 
+    pool_pre_ping=True,     # detect dead/stale connections
+    pool_size=5,            # small pool
+    max_overflow=10,        # allow temporary spikes
 )
 
-# Create async session factory
-AsyncSessionLocal = sessionmaker(
+# Use async_sessionmaker
+AsyncSessionLocal = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
-    autocommit=False,
 )
 
 
-# Dependency for FastAPI
+# Dependency for FastAPI - Let FastAPI handle transactions
 async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
         finally:
             await session.close()
-
 
 # Database initialization
 async def create_tables():

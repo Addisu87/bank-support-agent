@@ -1,71 +1,81 @@
 import asyncio
 import os
-from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.pool import NullPool
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from httpx import AsyncClient, ASGITransport
 
-# Set test environment before any imports
-os.environ["ENV_STATE"] = "test"
-
-import logfire
 from app.db.models.base import Base
 from app.main import app
 from app.core.config import settings
+from app.db.session import get_db
 
+# Force test environment
+os.environ["ENV_STATE"] = "test"
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-@pytest.fixture(scope="session")
-async def test_engine():
-    """Create test database engine and tables"""
-
-    test_db_url = settings.current_database_url
-    engine = create_async_engine(test_db_url, echo=False, future=True)
-
-    # Create tables
-    async with engine.begin() as conn:
+# ------------------------
+# ENGINE (CREATED PER FUNCTION)
+# ------------------------
+@pytest_asyncio.fixture
+async def engine():
+    eng = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        future=True,
+        pool_size=3,
+        max_overflow=0,
+        pool_pre_ping=True,
+    )
+    # Drop and create tables once per session
+    async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+    yield eng
+    await eng.dispose()
 
-    yield engine
 
-    # Drop tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-    await engine.dispose()
-
+# ------------------------
+# SESSION FACTORY (REUSED)
+# ------------------------
 @pytest_asyncio.fixture
-async def test_session(test_engine):
-    """Create a new database session for each test, with rollback."""
-    async_session = sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
+async def session_factory(engine):
+    return async_sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
     )
 
-    async with async_session() as session:
-        await session.begin()
-        try:
-            yield session
-        finally:
-            await session.rollback()
-            await session.close()
 
-@pytest_asyncio.fixture(scope="session")
-async def client():
-    """
-    Asynchronous test client fixture for testing async endpoints.
-    """
+# ------------------------
+# PER-TEST DATABASE SESSION
+# ------------------------
+@pytest_asyncio.fixture
+async def db(session_factory):
+    """Provide a fresh session per test, rollback at the end."""
+    async with session_factory() as session:
+        yield session
+        await session.rollback()  # rollback all changes after test
+
+
+# ------------------------
+# FASTAPI TEST CLIENT
+# ------------------------
+@pytest_asyncio.fixture
+async def client(db):
+    """AsyncClient using the per-test session."""
+
+    async def override_get_db():
+        yield db  # reuse the same session in all requests in a test
+
+    app.dependency_overrides[get_db] = override_get_db
+
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app),
+        base_url="http://test"
     ) as ac:
         yield ac
+
+    app.dependency_overrides.clear()
+

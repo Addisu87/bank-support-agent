@@ -5,25 +5,22 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    # Load environment variables
+class BaseConfig(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_file_encoding="utf-8")
-    
-    # Environment
     ENV_STATE: Literal["dev", "prod", "test"] = "dev"
 
+class GlobalConfig(BaseConfig):
     # API Configuration
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Bank Support Agent"
     
     # Database
-    DATABASE_URL: str | None = None
-    TEST_DATABASE_URL: str | None = None
+    DATABASE_URL: str
     
     # AI/ML Configuration
     PYDANTIC_AI_MODEL: str | None = None
     DEEPSEEK_API_KEY: str | None = None
-    BASE_URL: str | None = None
+    DEEPSEEK_URL: str | None = None
     
     # Redis Cache
     REDIS_URL: str | None = None
@@ -52,27 +49,26 @@ class Settings(BaseSettings):
     MAIL_SSL_TLS: bool = False
     USE_CREDENTIALS: bool = True
     VALIDATE_CERTS: bool = False
-    
-    @property
-    def current_database_url(self) -> str:
-        """Get PostgreSQL database URL - convert format if needed"""
-        # Use test database for test environment
-        if self.ENV_STATE == "test":
-            if not self.TEST_DATABASE_URL:
-                raise ValueError("TEST_DATABASE_URL is required for test environment")
-            db_url = self.TEST_DATABASE_URL
-        else:
-            if not self.DATABASE_URL:
-                raise ValueError("DATABASE_URL is required")
-            db_url = self.DATABASE_URL
-        
-        return db_url
+
+class DevConfig(GlobalConfig):
+    model_config = SettingsConfigDict(env_prefix="DEV_", extra="ignore")
+
+class ProdConfig(GlobalConfig):
+    model_config = SettingsConfigDict(env_prefix="PROD_", extra="ignore")
+    DEBUG: bool = False
+
+class TestConfig(GlobalConfig):
+    model_config = SettingsConfigDict(env_prefix="TEST_", extra="ignore")
+    DATABASE_URL: str | None = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
+    DB_FORCE_ROLL_BACK: bool = True
+    PYDANTIC_AI_MODEL: str = "test-model"
+    DEEPSEEK_API_KEY: str = "test-key"
 
 
 @lru_cache()
-def get_settings() -> Settings:
-    """Get application settings"""
-    return Settings()
-
+def get_settings() -> GlobalConfig:
+    env_state = BaseConfig().ENV_STATE
+    configs: dict[str, type[GlobalConfig]] = {"dev": DevConfig, "prod": ProdConfig, "test": TestConfig}
+    return configs[env_state]()
 
 settings = get_settings()

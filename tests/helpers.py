@@ -1,6 +1,5 @@
 import uuid
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 
 def generate_unique_email():
@@ -171,25 +170,3 @@ async def get_cards(client: AsyncClient, token: str, account_id: int = None) -> 
         headers={"Authorization": f"Bearer {token}"}
     )
     return response
-
-
-# Mock the LLM agent to avoid API calls during testing
-@pytest.fixture(autouse=True)
-def mock_llm_dependencies():
-    """Mock LLM dependencies for all tests"""
-    with patch('app.services.llm_agent.DeepSeekProvider') as mock_provider:
-        with patch('app.services.llm_agent.Agent') as mock_agent:
-            # Configure the mock provider
-            mock_provider_instance = MagicMock()
-            mock_provider.return_value = mock_provider_instance
-            
-            # Configure the mock agent
-            mock_agent_instance = AsyncMock()
-            mock_agent.return_value = mock_agent_instance
-            
-            # Mock the chat method to return a predictable response
-            mock_agent_instance.run.return_value = MagicMock(
-                answer="This is a mock response for testing purposes."
-            )
-            
-            yield
