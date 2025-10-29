@@ -5,16 +5,38 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from httpx import AsyncClient, ASGITransport
-
-from app.db.models.base import Base
-from app.main import app
-from app.core.config import settings
-from app.db.session import get_db
 from unittest.mock import patch, AsyncMock
 
 # Force test environment
 os.environ["ENV_STATE"] = "test"
 os.environ["DEEPSEEK_API_KEY"] = "test-key"  # dummy key for tests
+
+# ------------------------
+# MOCK DEEPSEEK PROVIDER BEFORE APP IMPORT
+# ------------------------
+patcher = patch(
+    "app.services.llm_agent.DeepSeekProvider",
+    new_callable=AsyncMock
+)
+patcher.start()  # globally patch for all tests
+
+# ------------------------
+# IMPORT APP AFTER MOCKING
+# ------------------------
+from app.main import app
+from app.db.models.base import Base
+from app.db.session import get_db
+from app.core.config import settings
+
+# ------------------------
+# SESSION-SCOPED EVENT LOOP
+# ------------------------
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create a session-scoped asyncio event loop for all async tests."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 # ------------------------
 # ENGINE (CREATED PER FUNCTION)
@@ -90,3 +112,12 @@ def mock_deepseek_provider():
         new_callable=AsyncMock
     ) as mock_provider:
         yield mock_provider
+        
+# ------------------------
+# CLEANUP PATCH AFTER TESTS
+# ------------------------
+@pytest.fixture(scope="session", autouse=True)
+def stop_global_patches():
+    """Stop global mocks at the end of the test session."""
+    yield
+    patcher.stop()
