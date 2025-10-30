@@ -33,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Default CMD: run migrations, seed database, and start FastAPI
-CMD ["sh", "-c", "/root/.local/bin/uv run alembic upgrade head && /root/.local/bin/uv run python scripts/seed_banks.py && /root/.local/bin/uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+CMD ["sh", "-c", "/root/.local/bin/uv run alembic upgrade head && /root/.local/bin/uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
