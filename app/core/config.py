@@ -8,7 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class BaseConfig(BaseSettings):
     # Load environment variables from .env
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", env_file_encoding="utf-8"
+    )
     ENV_STATE: Literal["dev", "prod", "test"] = "dev"
 
 
@@ -69,7 +71,9 @@ class ProdConfig(GlobalConfig):
 
 class TestConfig(GlobalConfig):
     model_config = SettingsConfigDict(env_prefix="TEST_", extra="ignore")
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:bank87@localhost:5432/test_bankdb"
+    )
     DB_FORCE_ROLL_BACK: bool = True
     PYDANTIC_AI_MODEL: str = "test-model"
     DEEPSEEK_API_KEY: str = "test-key"
@@ -84,6 +88,6 @@ def get_settings() -> GlobalConfig:
         "test": TestConfig,
     }
     return configs[env_state]()
-    
+
 
 settings = get_settings()

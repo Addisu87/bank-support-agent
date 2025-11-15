@@ -2,6 +2,8 @@
 
 This project is a FastAPI-based bank support agent that uses a combination of AI agents and database integration to provide assistance to bank customers.
 
+[Live Demo Link](https://bank-support-agent.onrender.com/docs)
+
 ## Installation
 
 1.  **Clone the repository:**
@@ -79,12 +81,7 @@ docker-compose logs -f web
     uv run python main.py
     ```
 
-    The application will be available at `http://localhost:8000`.
-    
-   Live preview
-   ```bash 
-        https://bank-support-agent.onrender.com
-    ```
+    The application will be available at `https://bank-support-agent.onrender.com`.
 
 ## Testing
 
@@ -95,4 +92,4 @@ To run the tests, use the following command:
 
 ## API Reference
 
-The API documentation is available at `http://localhost:8000/docs` when the application is running.
+The API documentation is available at `https://bank-support-agent.onrender.com/docs` when the application is running.

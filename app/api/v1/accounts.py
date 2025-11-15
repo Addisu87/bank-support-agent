@@ -23,6 +23,7 @@ from app.services.email_service import send_email
 
 router = APIRouter(tags=["accounts"])
 
+
 @router.post("/", response_model=AccountResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_account(
     background_tasks: BackgroundTasks,
@@ -32,7 +33,7 @@ async def create_new_account(
 ):
     """Create a new account for current user"""
     account = await create_account(db, current_user.id, account_data)
-    
+
     background_tasks.add_task(
         send_email,
         str(current_user.email),
@@ -41,8 +42,8 @@ async def create_new_account(
             "user_name": current_user.full_name,
             "account_number": account.account_number,
             "account_type": account.account_type,
-            "balance": account.balance
-        }
+            "balance": account.balance,
+        },
     )
     return account
 
@@ -55,6 +56,7 @@ async def get_all_user_accounts(
     """Get all accounts for current user"""
     accounts = await get_all_accounts(db, current_user.id)
     return accounts
+
 
 @router.get("/{account_id}", response_model=AccountResponse)
 async def get_account(

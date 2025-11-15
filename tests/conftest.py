@@ -14,10 +14,7 @@ os.environ["DEEPSEEK_API_KEY"] = "test-key"  # dummy key for tests
 # ------------------------
 # MOCK DEEPSEEK PROVIDER BEFORE APP IMPORT
 # ------------------------
-patcher = patch(
-    "app.services.llm_agent.DeepSeekProvider",
-    new_callable=AsyncMock
-)
+patcher = patch("app.services.llm_agent.DeepSeekProvider", new_callable=AsyncMock)
 patcher.start()  # globally patch for all tests
 
 # ------------------------
@@ -28,6 +25,7 @@ from app.db.models.base import Base
 from app.db.session import get_db
 from app.core.config import settings
 
+
 # ------------------------
 # SESSION-SCOPED EVENT LOOP
 # ------------------------
@@ -37,6 +35,7 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
 
 # ------------------------
 # ENGINE (CREATED PER FUNCTION)
@@ -96,23 +95,21 @@ async def client(db):
     app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
     app.dependency_overrides.clear()
 
 
-
 @pytest.fixture(autouse=True)
 def mock_deepseek_provider():
     with patch(
-        "app.services.llm_agent.DeepSeekProvider",
-        new_callable=AsyncMock
+        "app.services.llm_agent.DeepSeekProvider", new_callable=AsyncMock
     ) as mock_provider:
         yield mock_provider
-        
+
+
 # ------------------------
 # CLEANUP PATCH AFTER TESTS
 # ------------------------

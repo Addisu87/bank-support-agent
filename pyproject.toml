@@ -1,7 +1,7 @@
 [project]
 name = "bank-support-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "This project is a FastAPI-based bank support agent that uses a combination of AI agents and database integration to provide assistance to bank customers."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

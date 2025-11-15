@@ -29,6 +29,7 @@ def get_db_url() -> str:
         raise CommandError(f"Invalid or missing DATABASE_URL: {url!r}")
     return url
 
+
 def run_migrations_offline():
     context.configure(
         url=get_db_url(),

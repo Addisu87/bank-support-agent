@@ -59,10 +59,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/health")
 async def health_check():
     return {
-        "status": "healthy", 
-        "service": settings.PROJECT_NAME, 
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
         "version": "1.0.0",
-        "database": "postgresql"
+        "database": "postgresql",
     }
 
 

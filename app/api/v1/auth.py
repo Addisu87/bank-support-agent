@@ -25,17 +25,17 @@ router = APIRouter(tags=["authentication"])
 async def register(
     background_tasks: BackgroundTasks,
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Register a new user account."""
     user_db = await create_user(db, user_data)
-    
+
     # Send welcome email directly
     background_tasks.add_task(
-        send_email, 
+        send_email,
         str(user_db.email),
         "user_welcome",  # template_type
-        {"user_name": str(user_db.full_name)} # template_data
+        {"user_name": str(user_db.full_name)},  # template_data
     )
     return UserResponse.model_validate(user_db)
 

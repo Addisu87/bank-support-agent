@@ -41,8 +41,8 @@ async def create_new_card(
             "user_name": str(current_user.full_name),
             "card_type": card.card_type.value,
             "last_four_digits": card.card_number[-4:],
-            "expiry_date": card.expiry_date.strftime("%m/%Y")
-        }
+            "expiry_date": card.expiry_date.strftime("%m/%Y"),
+        },
     )
     return card
 

@@ -51,21 +51,21 @@ async def create_new_transaction(
         )
 
     transaction = await create_transaction(db, transaction_data)
-    
+
     # send transaction alert email
     background_tasks.add_task(
         send_email,
         str(current_user.email),  # to_email
-        "transaction_alert",      # template_type
+        "transaction_alert",  # template_type
         {
             "user_name": str(current_user.full_name),
             "amount": transaction.amount,
             "transaction_type": transaction.transaction_type.value,
-            "current_balance": account.balance, 
+            "current_balance": account.balance,
             "description": transaction.description or "",
             "is_suspicious": False,
-            "transaction_date": datetime.now().strftime("%Y-%m-%d %H:%M")
-        }
+            "transaction_date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        },
     )
     return transaction
 

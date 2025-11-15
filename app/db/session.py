@@ -7,10 +7,10 @@ from app.db.models.base import Base
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=True,
-    future=True, 
-    pool_pre_ping=True,     # detect dead/stale connections
-    pool_size=5,            # small pool
-    max_overflow=10,        # allow temporary spikes
+    future=True,
+    pool_pre_ping=True,  # detect dead/stale connections
+    pool_size=5,  # small pool
+    max_overflow=10,  # allow temporary spikes
 )
 
 # Use async_sessionmaker
@@ -29,6 +29,7 @@ async def get_db() -> AsyncSession:
             yield session
         finally:
             await session.close()
+
 
 # Database initialization
 async def create_tables():
