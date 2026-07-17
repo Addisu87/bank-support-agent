@@ -1,20 +1,24 @@
-import sys, os, asyncio
+import asyncio
+import os
+import sys
 from logging.config import fileConfig
+
+from alembic.util.exc import CommandError
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
+
 from alembic import context
-from alembic.util.exc import CommandError
 
 # Add project root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.core.config import settings
 from app.db.models.account import Account
 from app.db.models.bank import Bank
 from app.db.models.base import BaseModel
 from app.db.models.card import Card
 from app.db.models.transaction import Transaction
 from app.db.models.user import User
-from app.core.config import settings
 
 config = context.config
 if config.config_file_name:

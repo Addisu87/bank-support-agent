@@ -1,10 +1,9 @@
+
 import logfire
 from fastapi import APIRouter, BackgroundTasks
-from pydantic import BaseModel, EmailStr
-from typing import Dict, Any
+
 from app.schemas.email import EmailRequest
 from app.services.email_service import send_email
-from app.schemas.email import EmailRequest
 
 router = APIRouter(tags=["email"])
 

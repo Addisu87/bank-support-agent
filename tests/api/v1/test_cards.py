@@ -1,11 +1,12 @@
 import pytest
+
 from tests.helpers import (
-    generate_unique_email,
-    get_auth_token,
     create_bank,
     create_card,
-    get_cards,
     create_user_account,
+    generate_unique_email,
+    get_auth_token,
+    get_cards,
 )
 
 

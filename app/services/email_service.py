@@ -1,7 +1,9 @@
 import os
+
 import logfire
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from fastapi_mail import ConnectionConfig, FastMail, MessageSchema
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 from app.core.config import settings
 
 

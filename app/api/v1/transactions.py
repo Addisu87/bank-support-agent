@@ -1,7 +1,7 @@
-from typing import List
 from datetime import datetime
+from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_active_user, get_db
@@ -15,6 +15,7 @@ from app.schemas.transaction import (
     WithdrawalRequest,
 )
 from app.services.account_service import get_account_by_id
+from app.services.email_service import send_email
 from app.services.transaction_service import (
     _verify_transaction_ownership,
     create_interbank_transfer,
@@ -27,7 +28,6 @@ from app.services.transaction_service import (
     transfer_funds,
     withdraw_funds,
 )
-from app.services.email_service import send_email
 
 router = APIRouter(tags=["transactions"])
 

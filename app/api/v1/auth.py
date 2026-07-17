@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.config import settings
@@ -9,12 +9,12 @@ from app.core.security import create_access_token
 from app.db.models.user import User
 from app.db.session import AsyncSession, get_db
 from app.schemas.user import Token, UserCreate, UserResponse
+from app.services.email_service import send_email
 from app.services.user_service import (
     authenticate_user,
     change_user_password,
     create_user,
 )
-from app.services.email_service import send_email
 
 router = APIRouter(tags=["authentication"])
 

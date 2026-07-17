@@ -1,11 +1,11 @@
 import asyncio
 import os
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Force test environment
 os.environ["ENV_STATE"] = "test"
@@ -20,10 +20,10 @@ patcher.start()  # globally patch for all tests
 # ------------------------
 # IMPORT APP AFTER MOCKING
 # ------------------------
-from app.main import app
+from app.core.config import settings
 from app.db.models.base import Base
 from app.db.session import get_db
-from app.core.config import settings
+from app.main import app
 
 
 # ------------------------

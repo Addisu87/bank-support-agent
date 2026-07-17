@@ -1,11 +1,13 @@
+import uuid
+
 import pytest
 from fastapi import status
-import uuid
+
 from tests.helpers import (
     generate_unique_email,
-    register_user,
-    login_user,
     get_auth_token,
+    login_user,
+    register_user,
 )
 
 

@@ -1,10 +1,11 @@
+
 import pytest
-import uuid
+
 from tests.helpers import (
-    generate_unique_email,
-    get_auth_token,
     create_bank,
     create_user_account,
+    generate_unique_email,
+    get_auth_token,
     get_user_accounts,
 )
 

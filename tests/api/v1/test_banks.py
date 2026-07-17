@@ -1,6 +1,8 @@
-import pytest
 import uuid
-from tests.helpers import generate_unique_email, get_auth_token, create_bank, get_banks
+
+import pytest
+
+from tests.helpers import create_bank, generate_unique_email, get_auth_token, get_banks
 
 
 @pytest.mark.asyncio

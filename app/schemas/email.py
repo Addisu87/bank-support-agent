@@ -1,5 +1,6 @@
+from typing import Any, Dict
+
 from pydantic import BaseModel, EmailStr
-from typing import Dict, Any
 
 
 class EmailRequest(BaseModel):
